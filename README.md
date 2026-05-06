@@ -68,7 +68,21 @@ For advanced flows that already have a user JWT, call
 
 | Import | Purpose |
 |--------|---------|
-| `@pymthouse/builder-api` | `PmtHouseClient`, discovery cache, errors |
+| `@pymthouse/builder-api` | `PmtHouseClient`, discovery cache, errors, usage aggregation helpers |
+
+## Usage API: duplicate `byUser` rows
+
+When `getUsage({ groupBy: "user" })` returns multiple `byUser` rows with the same
+`externalUserId`, sum them with `summarizeUsageForExternalUser` (or
+`aggregateUsageByExternalUserId` on `byUser` alone):
+
+```ts
+import { summarizeUsageForExternalUser } from "@pymthouse/builder-api";
+
+const usage = await client.getUsage({ groupBy: "user", startDate, endDate });
+const summary = summarizeUsageForExternalUser(usage, externalUserId);
+// summary.requestCount, summary.feeWei (wei string)
+```
 | `@pymthouse/builder-api/format` | Wei formatting for Usage API |
 | `@pymthouse/builder-api/env` | `createPmtHouseClientFromEnv`, `getPymthouseBaseUrl` |
 | `@pymthouse/builder-api/device` | RFC 8628 `pollDeviceToken` |
