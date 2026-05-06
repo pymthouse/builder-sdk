@@ -1,11 +1,11 @@
 import {
   allowInsecureRequests,
-  ClientSecretPost,
   clientCredentialsGrantRequest,
   customFetch,
   genericTokenEndpointRequest,
   processClientCredentialsResponse,
   processGenericTokenEndpointResponse,
+  type ClientAuth,
   type ClientCredentialsGrantRequestOptions,
   type TokenEndpointRequestOptions,
 } from "oauth4webapi";
@@ -25,6 +25,7 @@ import type {
   DeviceApprovalInput,
   FetchLike,
   GetDiscoveryOptions,
+  MintUserSignerSessionTokenInput,
   MintUserAccessTokenInput,
   MintUserAccessTokenResponse,
   OidcDiscoveryDocument,
@@ -38,6 +39,7 @@ import type {
 
 const TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
 const SUBJECT_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
+const REQUESTED_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
 
 const DEVICE_RESOURCE_PREFIX = "urn:pmth:device_code:";
 
@@ -204,7 +206,7 @@ export class PmtHouseClient {
       allowInsecureHttp: this.allowInsecureHttp,
     });
     const client = m2mClient(this.m2mClientId);
-    const clientAuth = ClientSecretPost(this.m2mClientSecret);
+    const clientAuth = this.m2mClientAuth();
     const params = new URLSearchParams();
     params.set("subject_token", input.userJwt);
     params.set("subject_token_type", SUBJECT_ACCESS_TOKEN_TYPE);
@@ -237,7 +239,7 @@ export class PmtHouseClient {
       allowInsecureHttp: this.allowInsecureHttp,
     });
     const client = m2mClient(this.m2mClientId);
-    const clientAuth = ClientSecretPost(this.m2mClientSecret);
+    const clientAuth = this.m2mClientAuth();
     const params = new URLSearchParams();
     params.set("scope", scope);
 
@@ -262,16 +264,22 @@ export class PmtHouseClient {
 
   async exchangeForSignerSession(input: {
     userJwt: string;
+    resource?: string;
   }): Promise<TokenExchangeResponse> {
     const as = await loadAuthorizationServer(this.issuerUrl, this.fetchImpl, {
       allowInsecureHttp: this.allowInsecureHttp,
     });
     const client = m2mClient(this.m2mClientId);
-    const clientAuth = ClientSecretPost(this.m2mClientSecret);
+    const clientAuth = this.m2mClientAuth();
     const params = new URLSearchParams();
     params.set("subject_token", input.userJwt);
     params.set("subject_token_type", SUBJECT_ACCESS_TOKEN_TYPE);
-    params.set("scope", "sign:job");
+    params.set("requested_token_type", REQUESTED_ACCESS_TOKEN_TYPE);
+    const resourceCandidate =
+      typeof input.resource === "string" && input.resource.trim() !== ""
+        ? input.resource.trim()
+        : this.issuerUrl;
+    params.set("resource", stripTrailingSlashes(resourceCandidate));
 
     try {
       const response = await genericTokenEndpointRequest(
@@ -291,6 +299,24 @@ export class PmtHouseClient {
     } catch (e) {
       throw mapOAuthError(e);
     }
+  }
+
+  /**
+   * Mint a short-lived per-user JWT with the Builder API, then exchange it for
+   * a long-lived opaque signer session token at the PymtHouse OIDC token endpoint.
+   */
+  async mintUserSignerSessionToken(
+    input: MintUserSignerSessionTokenInput,
+  ): Promise<TokenExchangeResponse> {
+    const userToken = await this.mintUserAccessToken({
+      externalUserId: input.externalUserId,
+      scope: input.scope ?? "sign:job",
+    });
+
+    return this.exchangeForSignerSession({
+      userJwt: userToken.access_token,
+      resource: input.resource,
+    });
   }
 
   async createSignerSessionToken(params: {
@@ -358,6 +384,12 @@ export class PmtHouseClient {
       Authorization: encodeClientSecretBasic(this.m2mClientId, this.m2mClientSecret),
       "Content-Type": "application/json",
       Accept: "application/json",
+    };
+  }
+
+  private m2mClientAuth(): ClientAuth {
+    return (_as, _client, _body, headers) => {
+      headers.set("Authorization", encodeClientSecretBasic(this.m2mClientId, this.m2mClientSecret));
     };
   }
 

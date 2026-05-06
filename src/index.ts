@@ -16,6 +16,7 @@ export type {
   GetDiscoveryOptions,
   MintUserAccessTokenInput,
   MintUserAccessTokenResponse,
+  MintUserSignerSessionTokenInput,
   OidcDiscoveryDocument,
   ParsedDeviceApprovalRedirect,
   PmtHouseClientOptions,

@@ -56,6 +56,14 @@ export interface MintUserAccessTokenInput {
   scope?: string;
 }
 
+export interface MintUserSignerSessionTokenInput extends MintUserAccessTokenInput {
+  /**
+   * Optional RFC 8707 resource indicator for the signer-session exchange.
+   * Defaults to the configured PymtHouse issuer URL.
+   */
+  resource?: string;
+}
+
 export interface MintUserAccessTokenResponse {
   access_token: string;
   refresh_token: string;

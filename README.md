@@ -38,6 +38,32 @@ const client = new PmtHouseClient({
 });
 ```
 
+## User tokens: short-lived JWT or long-lived signer session
+
+Use `mintUserAccessToken()` when your backend needs the short-lived
+Builder-minted user JWT directly:
+
+```ts
+const userJwt = await client.mintUserAccessToken({
+  externalUserId: "naap-user-123",
+  scope: "sign:job",
+});
+```
+
+Use `mintUserSignerSessionToken()` when you want the user-facing opaque
+`pmth_...` signer session. This first mints the short-lived user JWT, then
+performs the RFC 8693 token exchange with the confidential M2M client:
+
+```ts
+const signerSession = await client.mintUserSignerSessionToken({
+  externalUserId: "naap-user-123",
+  scope: "sign:job",
+});
+```
+
+For advanced flows that already have a user JWT, call
+`exchangeForSignerSession({ userJwt })` directly.
+
 ## Subpath exports
 
 | Import | Purpose |
