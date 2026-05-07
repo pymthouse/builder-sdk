@@ -1,5 +1,6 @@
 export {
   aggregateUsageByExternalUserId,
+  listUsageByPipelineModel,
   summarizeUsageForExternalUser,
 } from "./usage.js";
 export { PmtHouseClient, buildDeviceCodeResource, normalizeUserCode } from "./client.js";
@@ -27,6 +28,7 @@ export type {
   TokenExchangeResponse,
   UpsertAppUserInput,
   UsageApiResponse,
+  UsageByPipelineModelRow,
   UsageByUserRow,
   UsageForExternalUser,
   UsageQueryInput,

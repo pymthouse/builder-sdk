@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   aggregateUsageByExternalUserId,
+  listUsageByPipelineModel,
   summarizeUsageForExternalUser,
 } from "../src/usage.js";
 import type { UsageApiResponse, UsageByUserRow } from "../src/types.js";
@@ -71,5 +72,56 @@ describe("usage aggregation", () => {
       requestCount: 3,
       feeWei: "5",
     });
+  });
+
+  it("listUsageByPipelineModel returns empty array when missing", () => {
+    const usage: UsageApiResponse = {
+      clientId: "c",
+      period: { start: null, end: null },
+      totals: { requestCount: 0, totalFeeWei: "0" },
+    };
+    expect(listUsageByPipelineModel(usage)).toEqual([]);
+  });
+
+  it("listUsageByPipelineModel sorts by pipeline then modelId", () => {
+    const usage: UsageApiResponse = {
+      clientId: "c",
+      period: { start: null, end: null },
+      totals: { requestCount: 0, totalFeeWei: "0" },
+      byPipelineModel: [
+        {
+          pipeline: "b-pipe",
+          modelId: "m1",
+          requestCount: 1,
+          networkFeeWei: "1",
+          networkFeeUsdMicros: "0",
+          ownerChargeUsdMicros: "0",
+          endUserBillableUsdMicros: "0",
+        },
+        {
+          pipeline: "a-pipe",
+          modelId: "m2",
+          requestCount: 2,
+          networkFeeWei: "2",
+          networkFeeUsdMicros: "0",
+          ownerChargeUsdMicros: "0",
+          endUserBillableUsdMicros: "0",
+        },
+        {
+          pipeline: "a-pipe",
+          modelId: "m1",
+          requestCount: 3,
+          networkFeeWei: "3",
+          networkFeeUsdMicros: "0",
+          ownerChargeUsdMicros: "0",
+          endUserBillableUsdMicros: "0",
+        },
+      ],
+    };
+    expect(listUsageByPipelineModel(usage).map((r) => `${r.pipeline}:${r.modelId}`)).toEqual([
+      "a-pipe:m1",
+      "a-pipe:m2",
+      "b-pipe:m1",
+    ]);
   });
 });

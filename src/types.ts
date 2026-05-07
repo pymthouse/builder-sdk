@@ -90,8 +90,9 @@ export interface TokenExchangeResponse {
 export interface UsageQueryInput {
   startDate?: string;
   endDate?: string;
-  groupBy?: "none" | "user";
+  groupBy?: "none" | "user" | "pipeline_model";
   userId?: string;
+  gatewayRequestId?: string;
 }
 
 export interface UsageTotals {
@@ -108,6 +109,18 @@ export interface UsageByUserRow {
   identifier?: string;
 }
 
+/** One bucket from Usage API `groupBy=pipeline_model` (validated pipeline + model). */
+export interface UsageByPipelineModelRow {
+  pipeline: string;
+  modelId: string;
+  requestCount: number;
+  networkFeeWei: string;
+  networkFeeEth?: string;
+  networkFeeUsdMicros: string;
+  ownerChargeUsdMicros: string;
+  endUserBillableUsdMicros: string;
+}
+
 export interface UsageApiResponse {
   clientId: string;
   period: {
@@ -116,6 +129,7 @@ export interface UsageApiResponse {
   };
   totals: UsageTotals;
   byUser?: UsageByUserRow[];
+  byPipelineModel?: UsageByPipelineModelRow[];
 }
 
 /** Aggregated request count and fee for one provider `externalUserId` across duplicate `byUser` buckets. */

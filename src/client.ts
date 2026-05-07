@@ -351,6 +351,7 @@ export class PmtHouseClient {
     if (input.endDate) url.searchParams.set("endDate", input.endDate);
     if (input.groupBy) url.searchParams.set("groupBy", input.groupBy);
     if (input.userId) url.searchParams.set("userId", input.userId);
+    if (input.gatewayRequestId) url.searchParams.set("gatewayRequestId", input.gatewayRequestId);
 
     return this.requestJson<UsageApiResponse>(url.toString(), {
       method: "GET",

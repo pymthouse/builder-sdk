@@ -1,4 +1,9 @@
-import type { UsageApiResponse, UsageByUserRow, UsageForExternalUser } from "./types.js";
+import type {
+  UsageApiResponse,
+  UsageByPipelineModelRow,
+  UsageByUserRow,
+  UsageForExternalUser,
+} from "./types.js";
 
 /**
  * Sum all `byUser` buckets whose `externalUserId` matches the provider user.
@@ -41,4 +46,17 @@ export function summarizeUsageForExternalUser(
   externalUserId: string,
 ): UsageForExternalUser {
   return aggregateUsageByExternalUserId(usage.byUser, externalUserId);
+}
+
+/**
+ * Returns `byPipelineModel` rows from a Usage API response, sorted by `pipeline` then `modelId`.
+ * Use with `getUsage({ groupBy: "pipeline_model", ... })`.
+ */
+export function listUsageByPipelineModel(usage: UsageApiResponse): UsageByPipelineModelRow[] {
+  const rows = usage.byPipelineModel ?? [];
+  return [...rows].sort((a, b) => {
+    const p = a.pipeline.localeCompare(b.pipeline);
+    if (p !== 0) return p;
+    return a.modelId.localeCompare(b.modelId);
+  });
 }

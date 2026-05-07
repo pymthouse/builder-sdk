@@ -69,6 +69,10 @@ For advanced flows that already have a user JWT, call
 | Import | Purpose |
 |--------|---------|
 | `@pymthouse/builder-api` | `PmtHouseClient`, discovery cache, errors, usage aggregation helpers |
+| `@pymthouse/builder-api/format` | Wei formatting for Usage API |
+| `@pymthouse/builder-api/env` | `createPmtHouseClientFromEnv`, `getPymthouseBaseUrl` |
+| `@pymthouse/builder-api/device` | RFC 8628 `pollDeviceToken` |
+| `@pymthouse/builder-api/verify` | RFC 9068 `verifyJwt` |
 
 ## Usage API: duplicate `byUser` rows
 
@@ -83,10 +87,23 @@ const usage = await client.getUsage({ groupBy: "user", startDate, endDate });
 const summary = summarizeUsageForExternalUser(usage, externalUserId);
 // summary.requestCount, summary.feeWei (wei string)
 ```
-| `@pymthouse/builder-api/format` | Wei formatting for Usage API |
-| `@pymthouse/builder-api/env` | `createPmtHouseClientFromEnv`, `getPymthouseBaseUrl` |
-| `@pymthouse/builder-api/device` | RFC 8628 `pollDeviceToken` |
-| `@pymthouse/builder-api/verify` | RFC 9068 `verifyJwt` |
+
+## Usage API: pipeline/model grouping
+
+When `getUsage({ groupBy: "pipeline_model", startDate, endDate, userId })` returns
+`byPipelineModel`, use `listUsageByPipelineModel` for a stable-sorted copy:
+
+```ts
+import { listUsageByPipelineModel } from "@pymthouse/builder-api";
+
+const usage = await client.getUsage({
+  groupBy: "pipeline_model",
+  startDate,
+  endDate,
+  userId: internalUserId,
+});
+const rows = listUsageByPipelineModel(usage);
+```
 
 ## Documentation
 
