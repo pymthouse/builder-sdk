@@ -1,3 +1,7 @@
+export {
+  aggregateUsageByExternalUserId,
+  summarizeUsageForExternalUser,
+} from "./usage.js";
 export { PmtHouseClient, buildDeviceCodeResource, normalizeUserCode } from "./client.js";
 export { PmtHouseError, toPmtHouseError } from "./errors.js";
 export { createPmtHouseClientFromEnv, getPymthouseBaseUrl } from "./env.js";
@@ -24,6 +28,7 @@ export type {
   UpsertAppUserInput,
   UsageApiResponse,
   UsageByUserRow,
+  UsageForExternalUser,
   UsageQueryInput,
   UsageTotals,
 } from "./types.js";

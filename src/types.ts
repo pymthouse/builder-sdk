@@ -118,6 +118,13 @@ export interface UsageApiResponse {
   byUser?: UsageByUserRow[];
 }
 
+/** Aggregated request count and fee for one provider `externalUserId` across duplicate `byUser` buckets. */
+export interface UsageForExternalUser {
+  externalUserId: string;
+  requestCount: number;
+  feeWei: string;
+}
+
 export interface ClientCredentialsTokenResponse {
   access_token: string;
   token_type: "Bearer";
