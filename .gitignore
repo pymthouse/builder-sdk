@@ -4,3 +4,4 @@ dist
 .DS_Store
 coverage
 *.tgz
+.vscode/settings.json

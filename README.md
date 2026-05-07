@@ -91,7 +91,9 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 ## Usage API: pipeline/model grouping
 
 When `getUsage({ groupBy: "pipeline_model", startDate, endDate, userId })` returns
-`byPipelineModel`, use `listUsageByPipelineModel` for a stable-sorted copy:
+`byPipelineModel`, use `listUsageByPipelineModel` for a stable-sorted copy. Pass
+the optional `gatewayRequestId` filter to scope results to a single upstream
+gateway request:
 
 ```ts
 import { listUsageByPipelineModel } from "@pymthouse/builder-api";
@@ -101,6 +103,7 @@ const usage = await client.getUsage({
   startDate,
   endDate,
   userId: internalUserId,
+  gatewayRequestId, // optional: filter to a single gateway request
 });
 const rows = listUsageByPipelineModel(usage);
 ```
