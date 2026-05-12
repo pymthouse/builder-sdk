@@ -199,4 +199,34 @@ describe("PmtHouseClient signer session exchange", () => {
     expect(params.has("scope")).toBe(false);
     expect(params.has("client_secret")).toBe(false);
   });
+
+  it("POSTs resolve-signer-session with Basic auth and JSON body", async () => {
+    const RESOLVE_ENDPOINT =
+      "https://pymthouse.example/api/v1/apps/app_pub/resolve-signer-session";
+    const requests: Request[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      if (request.url === RESOLVE_ENDPOINT) {
+        return json({
+          externalUserId: "naap-user-42",
+          appUserId: "au-1",
+          scopes: "sign:job",
+          expiresAt: "2099-01-01T00:00:00.000Z",
+        });
+      }
+      throw new Error(`Unexpected request: ${request.url}`);
+    };
+
+    const out = await createClient(fetchImpl).resolveSignerSessionToken({
+      signerSessionToken: "pmth_abc",
+    });
+
+    expect(out.externalUserId).toBe("naap-user-42");
+    expect(out.appUserId).toBe("au-1");
+    expect(requests).toHaveLength(1);
+    expect(requests[0].headers.get("Authorization")).toBe(BASIC_AUTH);
+    const body = JSON.parse(await requests[0].clone().text());
+    expect(body).toEqual({ token: "pmth_abc" });
+  });
 });

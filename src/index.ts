@@ -25,6 +25,7 @@ export type {
   OidcDiscoveryDocument,
   ParsedDeviceApprovalRedirect,
   PmtHouseClientOptions,
+  ResolveSignerSessionResponse,
   TokenExchangeResponse,
   UpsertAppUserInput,
   UsageApiResponse,

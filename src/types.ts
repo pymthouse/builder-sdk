@@ -64,6 +64,13 @@ export interface MintUserSignerSessionTokenInput extends MintUserAccessTokenInpu
   resource?: string;
 }
 
+export interface ResolveSignerSessionResponse {
+  externalUserId: string;
+  appUserId: string | null;
+  scopes: string;
+  expiresAt: string | null;
+}
+
 export interface MintUserAccessTokenResponse {
   access_token: string;
   refresh_token: string;

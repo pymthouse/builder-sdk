@@ -1,6 +1,6 @@
 {
   "name": "@pymthouse/builder-api",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "PymtHouse Builder API and OIDC client (OpenID-certified oauth4webapi)",
   "type": "module",
   "main": "./dist/index.cjs",

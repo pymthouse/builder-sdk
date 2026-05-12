@@ -28,6 +28,7 @@ import type {
   MintUserSignerSessionTokenInput,
   MintUserAccessTokenInput,
   MintUserAccessTokenResponse,
+  ResolveSignerSessionResponse,
   OidcDiscoveryDocument,
   ParsedDeviceApprovalRedirect,
   PmtHouseClientOptions,
@@ -195,6 +196,33 @@ export class PmtHouseClient {
       method: "POST",
       headers: this.builderHeaders(),
       body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Resolve an opaque `pmth_*` signer session to the linked external user id
+   * (M2M Basic; requires `users:token` on the confidential client).
+   */
+  async resolveSignerSessionToken(params: {
+    signerSessionToken: string;
+  }): Promise<ResolveSignerSessionResponse> {
+    const token =
+      typeof params.signerSessionToken === "string"
+        ? params.signerSessionToken.trim()
+        : "";
+    if (!token) {
+      throw new PmtHouseError("signerSessionToken is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+
+    const url = `${this.getAppsBaseUrl()}/resolve-signer-session`;
+    return this.requestJson<ResolveSignerSessionResponse>(url, {
+      method: "POST",
+      headers: this.builderHeaders(),
+      body: JSON.stringify({ token }),
       cache: "no-store",
     });
   }
