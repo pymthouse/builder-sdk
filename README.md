@@ -1,5 +1,7 @@
 # @pymthouse/builder-api
 
+Source repository: [pymthouse/builder-sdk](https://github.com/pymthouse/builder-sdk). The npm package name remains `@pymthouse/builder-api`.
+
 TypeScript client for the **PymtHouse Builder API**, **Usage API**, and **OIDC issuer** surfaces.
 
 OAuth/OIDC protocol calls use **[oauth4webapi](https://github.com/panva/oauth4webapi)** (OpenID-certified relying-party implementation). PymtHouse-specific REST paths and helpers live in `PmtHouseClient`.
