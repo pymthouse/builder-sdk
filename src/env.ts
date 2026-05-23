@@ -13,7 +13,7 @@ function assertEnvModuleServerOnly(): void {
     typeof (globalThis as { window?: unknown }).window !== "undefined"
   ) {
     throw new Error(
-      "@pymthouse/builder-api/env is server-only: do not import createPmtHouseClientFromEnv or getPymthouseBaseUrl in client-side code. Use a Route Handler, Server Action, or other server/runtime; keep M2M credentials out of the browser bundle.",
+      "@pymthouse/builder-sdk/env is server-only: do not import createPmtHouseClientFromEnv or getPymthouseBaseUrl in client-side code. Use a Route Handler, Server Action, or other server/runtime; keep M2M credentials out of the browser bundle.",
     );
   }
 }

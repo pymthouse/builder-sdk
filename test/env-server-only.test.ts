@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-describe("@pymthouse/builder-api/env server-only guard", () => {
+describe("@pymthouse/builder-sdk/env server-only guard", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.resetModules();

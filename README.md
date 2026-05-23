@@ -1,6 +1,6 @@
-# @pymthouse/builder-api
+# @pymthouse/builder-sdk
 
-Source repository: [pymthouse/builder-sdk](https://github.com/pymthouse/builder-sdk). The npm package name remains `@pymthouse/builder-api`.
+Source repository: [pymthouse/builder-sdk](https://github.com/pymthouse/builder-sdk). The npm package name is `@pymthouse/builder-sdk`.
 
 TypeScript client for the **PymtHouse Builder API**, **Usage API**, and **OIDC issuer** surfaces.
 
@@ -9,17 +9,17 @@ OAuth/OIDC protocol calls use **[oauth4webapi](https://github.com/panva/oauth4we
 ## Install
 
 ```bash
-pnpm add @pymthouse/builder-api
+pnpm add @pymthouse/builder-sdk
 ```
 
 ## Quick start
 
 ```ts
-import { PmtHouseClient } from "@pymthouse/builder-api";
+import { PmtHouseClient } from "@pymthouse/builder-sdk";
 import {
   createPmtHouseClientFromEnv,
   getPymthouseBaseUrl,
-} from "@pymthouse/builder-api/env";
+} from "@pymthouse/builder-sdk/env";
 
 const client = createPmtHouseClientFromEnv();
 const base = getPymthouseBaseUrl();
@@ -29,7 +29,7 @@ const discovery = await client.getDiscovery();
 Or construct explicitly:
 
 ```ts
-import { PmtHouseClient } from "@pymthouse/builder-api";
+import { PmtHouseClient } from "@pymthouse/builder-sdk";
 
 const client = new PmtHouseClient({
   issuerUrl: process.env.PYMTHOUSE_ISSUER_URL!,
@@ -70,11 +70,11 @@ For advanced flows that already have a user JWT, call
 
 | Import | Purpose |
 |--------|---------|
-| `@pymthouse/builder-api` | `PmtHouseClient`, discovery cache, errors, usage aggregation helpers |
-| `@pymthouse/builder-api/format` | Wei formatting for Usage API |
-| `@pymthouse/builder-api/env` | `createPmtHouseClientFromEnv`, `getPymthouseBaseUrl` |
-| `@pymthouse/builder-api/device` | RFC 8628 `pollDeviceToken` |
-| `@pymthouse/builder-api/verify` | RFC 9068 `verifyJwt` |
+| `@pymthouse/builder-sdk` | `PmtHouseClient`, discovery cache, errors, usage aggregation helpers |
+| `@pymthouse/builder-sdk/format` | Wei formatting for Usage API |
+| `@pymthouse/builder-sdk/env` | `createPmtHouseClientFromEnv`, `getPymthouseBaseUrl` |
+| `@pymthouse/builder-sdk/device` | RFC 8628 `pollDeviceToken` |
+| `@pymthouse/builder-sdk/verify` | RFC 9068 `verifyJwt` |
 
 ## Usage API: duplicate `byUser` rows
 
@@ -83,7 +83,7 @@ When `getUsage({ groupBy: "user" })` returns multiple `byUser` rows with the sam
 `aggregateUsageByExternalUserId` on `byUser` alone):
 
 ```ts
-import { summarizeUsageForExternalUser } from "@pymthouse/builder-api";
+import { summarizeUsageForExternalUser } from "@pymthouse/builder-sdk";
 
 const usage = await client.getUsage({ groupBy: "user", startDate, endDate });
 const summary = summarizeUsageForExternalUser(usage, externalUserId);
@@ -98,7 +98,7 @@ the optional `gatewayRequestId` filter to scope results to a single upstream
 gateway request:
 
 ```ts
-import { listUsageByPipelineModel } from "@pymthouse/builder-api";
+import { listUsageByPipelineModel } from "@pymthouse/builder-sdk";
 
 const usage = await client.getUsage({
   groupBy: "pipeline_model",
@@ -114,7 +114,7 @@ const rows = listUsageByPipelineModel(usage);
 
 Authoritative API behavior: [PymtHouse `docs/builder-api.md`](https://github.com/pymthouse/pymthouse/blob/main/docs/builder-api.md).
 
-## Server-only: `createPmtHouseClientFromEnv` / `@pymthouse/builder-api/env`
+## Server-only: `createPmtHouseClientFromEnv` / `@pymthouse/builder-sdk/env`
 
 M2M credentials are **confidential**. The `env` entry point:
 
@@ -130,7 +130,7 @@ import "server-only";
 export {
   createPmtHouseClientFromEnv,
   getPymthouseBaseUrl,
-} from "@pymthouse/builder-api/env";
+} from "@pymthouse/builder-sdk/env";
 ```
 
 Import `createPmtHouseClientFromEnv` only from that wrapper (or from Route Handlers / Server Actions directly).
