@@ -1,5 +1,5 @@
 {
-  "name": "@pymthouse/builder-api",
+  "name": "@pymthouse/builder-sdk",
   "version": "0.0.8",
   "description": "PymtHouse Builder API and OIDC client (OpenID-certified oauth4webapi)",
   "type": "module",
@@ -73,7 +73,7 @@
     "pymthouse",
     "oauth2",
     "oidc",
-    "builder-api"
+    "builder-sdk"
   ],
   "repository": {
     "type": "git",
