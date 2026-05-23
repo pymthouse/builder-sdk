@@ -1,5 +1,7 @@
 # @pymthouse/builder-api
 
+Source repository: [pymthouse/builder-sdk](https://github.com/pymthouse/builder-sdk). The npm package name remains `@pymthouse/builder-api`.
+
 TypeScript client for the **PymtHouse Builder API**, **Usage API**, and **OIDC issuer** surfaces.
 
 OAuth/OIDC protocol calls use **[oauth4webapi](https://github.com/panva/oauth4webapi)** (OpenID-certified relying-party implementation). PymtHouse-specific REST paths and helpers live in `PmtHouseClient`.
@@ -110,7 +112,7 @@ const rows = listUsageByPipelineModel(usage);
 
 ## Documentation
 
-Authoritative API behavior: [PymtHouse `docs/builder-api.md`](https://github.com/eliteprox/pymthouse/blob/main/docs/builder-api.md).
+Authoritative API behavior: [PymtHouse `docs/builder-api.md`](https://github.com/pymthouse/pymthouse/blob/main/docs/builder-api.md).
 
 ## Server-only: `createPmtHouseClientFromEnv` / `@pymthouse/builder-api/env`
 

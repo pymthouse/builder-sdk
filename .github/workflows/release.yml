@@ -24,6 +24,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
+      - name: Verify package.json repository matches this repo
+        run: |
+          REPO_URL=$(node -p "require('./package.json').repository.url")
+          EXPECTED="https://github.com/${GITHUB_REPOSITORY}.git"
+          if [ "$REPO_URL" != "$EXPECTED" ]; then
+            echo "::error::package.json repository.url must be ${EXPECTED} for npm provenance (got ${REPO_URL})"
+            exit 1
+          fi
       - name: Verify NPM_TOKEN is configured
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -45,7 +53,12 @@ jobs:
         run: |
           PKG=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
+          if gh release view "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists on ${GITHUB_REPOSITORY}; skipping create."
+            exit 0
+          fi
           gh release create "${GITHUB_REF_NAME}" \
+            -R "${GITHUB_REPOSITORY}" \
             --title "${PKG} v${VER}" \
             --generate-notes \
             --verify-tag

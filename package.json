@@ -77,6 +77,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/eliteprox/pymthouse-builder-api.git"
-  }
+    "url": "https://github.com/pymthouse/builder-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pymthouse/builder-sdk/issues"
+  },
+  "homepage": "https://github.com/pymthouse/builder-sdk#readme"
 }
