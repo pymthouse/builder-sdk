@@ -12,7 +12,15 @@ import {
 import { encodeClientSecretBasic } from "./encoding.js";
 import { loadAuthorizationServer, authorizationServerToOidcDocument } from "./discovery.js";
 import { PmtHouseError } from "./errors.js";
+import { parseAppManifestResponse } from "./manifest.js";
 import { stripTrailingSlashes } from "./string-utils.js";
+import { SIGN_JOB_SCOPE, parseSignerSessionExchange } from "./tokens.js";
+import type { SignerSessionToken } from "./tokens.js";
+import {
+  buildMeScopeUsagePayload,
+  DEFAULT_MAX_END_USER_IDS,
+  getEndUserIdsForExternalUser,
+} from "./usage.js";
 import {
   mapOAuthError,
   m2mClient,
@@ -21,10 +29,14 @@ import {
 } from "./oauth-map.js";
 import type {
   AppUserRecord,
+  ApproveDeviceLoginInput,
   ClientCredentialsTokenResponse,
   DeviceApprovalInput,
   FetchLike,
+  GetAppManifestResult,
   GetDiscoveryOptions,
+  MeScopeUsagePayload,
+  MintSignerSessionForExternalUserInput,
   MintUserSignerSessionTokenInput,
   MintUserAccessTokenInput,
   MintUserAccessTokenResponse,
@@ -360,6 +372,149 @@ export class PmtHouseClient {
     });
   }
 
+  /**
+   * Session-scoped usage for one `externalUserId`: user rollup plus merged pipeline/model breakdown.
+   */
+  async fetchUsageForExternalUser(input: {
+    externalUserId: string;
+    startDate: string;
+    endDate: string;
+    maxEndUserIds?: number;
+  }): Promise<MeScopeUsagePayload> {
+    const usageByUser = await this.getUsage({
+      startDate: input.startDate,
+      endDate: input.endDate,
+      groupBy: "user",
+    });
+    const userIds = getEndUserIdsForExternalUser(usageByUser, input.externalUserId);
+    const cap = input.maxEndUserIds ?? DEFAULT_MAX_END_USER_IDS;
+    const cappedUserIds = userIds.slice(0, cap);
+    const usagePipelineModels = await Promise.all(
+      cappedUserIds.map((userId) =>
+        this.getUsage({
+          startDate: input.startDate,
+          endDate: input.endDate,
+          groupBy: "pipeline_model",
+          userId,
+        }),
+      ),
+    );
+    return buildMeScopeUsagePayload(usageByUser, input.externalUserId, usagePipelineModels);
+  }
+
+  async getAppManifest(opts?: {
+    ifNoneMatch?: string;
+    signal?: AbortSignal;
+  }): Promise<GetAppManifestResult> {
+    const url = `${this.getAppsBaseUrl()}/manifest`;
+    const headers: Record<string, string> = {
+      ...this.builderHeadersRecord(),
+    };
+    if (opts?.ifNoneMatch) {
+      headers["If-None-Match"] = opts.ifNoneMatch;
+    }
+
+    this.logger?.debug?.("PmtHouse request", { method: "GET", url });
+
+    const response = await this.fetchImpl(url, {
+      method: "GET",
+      headers,
+      signal: opts?.signal,
+      cache: "no-store",
+    });
+
+    const etag = response.headers.get("etag")?.trim() ?? null;
+
+    if (response.status === 304) {
+      return {
+        manifest: null,
+        etag: etag ?? opts?.ifNoneMatch ?? null,
+        notModified: true,
+      };
+    }
+
+    const raw = await response.text();
+    const ct = response.headers.get("content-type") ?? "";
+    const looksJson = ct.includes("application/json") || ct.includes("json");
+    const parsed = raw && looksJson ? this.safeParseJson(raw) : null;
+
+    if (!response.ok) {
+      const details = (parsed ?? {}) as Record<string, unknown>;
+      let description: string;
+      if (typeof details.error_description === "string") {
+        description = details.error_description;
+      } else if (typeof details.error === "string") {
+        description = details.error;
+      } else {
+        description = `Request failed (${response.status})`;
+      }
+      throw new PmtHouseError(description, {
+        status: response.status,
+        code: typeof details.error === "string" ? details.error : "pymthouse_http_error",
+        details,
+      });
+    }
+
+    if (!looksJson || parsed === null) {
+      throw new PmtHouseError("Expected JSON response from Builder manifest endpoint", {
+        status: 502,
+        code: "invalid_response",
+        details: { contentType: ct, preview: raw.slice(0, 200) },
+      });
+    }
+
+    return {
+      manifest: parseAppManifestResponse(parsed),
+      etag,
+      notModified: false,
+    };
+  }
+
+  /**
+   * Upsert an external user, mint a short-lived JWT, and exchange for an opaque signer session.
+   */
+  async mintSignerSessionForExternalUser(
+    input: MintSignerSessionForExternalUserInput,
+  ): Promise<SignerSessionToken> {
+    await this.upsertAppUser({
+      externalUserId: input.externalUserId,
+      email: input.email,
+      status: "active",
+    });
+    const exchange = await this.mintUserSignerSessionToken({
+      externalUserId: input.externalUserId,
+      scope: input.scope ?? SIGN_JOB_SCOPE,
+      resource: this.issuerUrl,
+    });
+    return parseSignerSessionExchange(exchange);
+  }
+
+  /**
+   * Approve a pending RFC 8628 device code for an external user (Option B).
+   */
+  async approveDeviceLogin(input: ApproveDeviceLoginInput): Promise<void> {
+    if (input.publicClientId && input.publicClientId !== this.publicClientId) {
+      throw new PmtHouseError(
+        "publicClientId does not match configured public client id",
+        { status: 400, code: "invalid_client" },
+      );
+    }
+
+    await this.upsertAppUser({
+      externalUserId: input.externalUserId,
+      email: input.email,
+      status: "active",
+    });
+    const userToken = await this.mintUserAccessToken({
+      externalUserId: input.externalUserId,
+      scope: SIGN_JOB_SCOPE,
+    });
+    await this.completeDeviceApproval({
+      userJwt: userToken.access_token,
+      userCode: input.userCode,
+    });
+  }
+
   private tokenEndpointFetchOptions():
     | ClientCredentialsGrantRequestOptions
     | TokenEndpointRequestOptions {
@@ -381,6 +536,10 @@ export class PmtHouseClient {
   }
 
   private builderHeaders(): HeadersInit {
+    return this.builderHeadersRecord();
+  }
+
+  private builderHeadersRecord(): Record<string, string> {
     return {
       Authorization: encodeClientSecretBasic(this.m2mClientId, this.m2mClientSecret),
       "Content-Type": "application/json",
@@ -408,12 +567,14 @@ export class PmtHouseClient {
 
     if (!response.ok) {
       const details = (parsed ?? {}) as Record<string, unknown>;
-      const description =
-        typeof details.error_description === "string"
-          ? details.error_description
-          : typeof details.error === "string"
-            ? details.error
-            : `Request failed (${response.status})`;
+      let description: string;
+      if (typeof details.error_description === "string") {
+        description = details.error_description;
+      } else if (typeof details.error === "string") {
+        description = details.error;
+      } else {
+        description = `Request failed (${response.status})`;
+      }
 
       throw new PmtHouseError(description, {
         status: response.status,
