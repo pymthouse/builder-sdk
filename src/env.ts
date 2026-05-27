@@ -8,11 +8,8 @@ import { stripTrailingSlashes } from "./string-utils.js";
  * for build-time enforcement (see README).
  */
 function assertEnvModuleServerOnly(): void {
-  if (
-    typeof globalThis !== "undefined" &&
-    typeof (globalThis as { window?: unknown }).window !== "undefined"
-  ) {
-    throw new Error(
+  if ((globalThis as { window?: unknown }).window !== undefined) {
+    throw new TypeError(
       "@pymthouse/builder-sdk/env is server-only: do not import createPmtHouseClientFromEnv or getPymthouseBaseUrl in client-side code. Use a Route Handler, Server Action, or other server/runtime; keep M2M credentials out of the browser bundle.",
     );
   }
@@ -23,9 +20,9 @@ assertEnvModuleServerOnly();
 let cachedClient: PmtHouseClient | null = null;
 
 function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (value && value.trim()) {
-    return value.trim();
+  const value = process.env[name]?.trim();
+  if (value) {
+    return value;
   }
 
   throw new PmtHouseError(`Missing required environment variable: ${name}`, {

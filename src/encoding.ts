@@ -4,9 +4,11 @@
  */
 export function encodeClientSecretBasic(clientId: string, clientSecret: string): string {
   const raw = `${clientId}:${clientSecret}`;
-  const b64 =
-    typeof Buffer !== "undefined"
-      ? Buffer.from(raw, "utf8").toString("base64")
-      : btoa(Array.from(new TextEncoder().encode(raw), (c) => String.fromCharCode(c)).join(""));
+  let b64: string;
+  if (typeof Buffer === "undefined") {
+    b64 = btoa(Array.from(new TextEncoder().encode(raw), (c) => String.fromCodePoint(c)).join(""));
+  } else {
+    b64 = Buffer.from(raw, "utf8").toString("base64");
+  }
   return `Basic ${b64}`;
 }

@@ -24,6 +24,54 @@ function createClient(fetchImpl: typeof fetch): PmtHouseClient {
   });
 }
 
+function createSignerSessionFetch(): {
+  requests: Request[];
+  bodies: string[];
+  fetchImpl: typeof fetch;
+} {
+  const requests: Request[] = [];
+  const bodies: string[] = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const request = new Request(input, init);
+    requests.push(request);
+    bodies.push(await request.clone().text());
+
+    if (request.url.endsWith("/.well-known/openid-configuration")) {
+      return json({
+        issuer: ISSUER,
+        authorization_endpoint: `${ISSUER}/authorize`,
+        token_endpoint: TOKEN_ENDPOINT,
+        jwks_uri: `${ISSUER}/jwks`,
+      });
+    }
+
+    if (request.url === USER_TOKEN_ENDPOINT) {
+      return json({
+        access_token: "eyJ.short.jwt",
+        refresh_token: "refresh",
+        token_type: "Bearer",
+        expires_in: 900,
+        scope: "sign:job",
+        subject_type: "app_user",
+      });
+    }
+
+    if (request.url === TOKEN_ENDPOINT) {
+      return json({
+        access_token: "pmth_long_lived",
+        token_type: "Bearer",
+        expires_in: 90 * 24 * 60 * 60,
+        issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+        scope: "sign:job",
+      });
+    }
+
+    throw new Error(`Unexpected request: ${request.url}`);
+  };
+
+  return { requests, bodies, fetchImpl };
+}
+
 describe("PmtHouseClient signer session exchange", () => {
   it("keeps short-lived user JWT minting available", async () => {
     const requests: Request[] = [];
@@ -58,45 +106,7 @@ describe("PmtHouseClient signer session exchange", () => {
 
   it("mints a user JWT first, then exchanges it for a long-lived signer session", async () => {
     clearDiscoveryCache(ISSUER);
-    const requests: Request[] = [];
-    const bodies: string[] = [];
-    const fetchImpl: typeof fetch = async (input, init) => {
-      const request = new Request(input, init);
-      requests.push(request);
-      bodies.push(await request.clone().text());
-
-      if (request.url.endsWith("/.well-known/openid-configuration")) {
-        return json({
-          issuer: ISSUER,
-          authorization_endpoint: `${ISSUER}/authorize`,
-          token_endpoint: TOKEN_ENDPOINT,
-          jwks_uri: `${ISSUER}/jwks`,
-        });
-      }
-
-      if (request.url === USER_TOKEN_ENDPOINT) {
-        return json({
-          access_token: "eyJ.short.jwt",
-          refresh_token: "refresh",
-          token_type: "Bearer",
-          expires_in: 900,
-          scope: "sign:job",
-          subject_type: "app_user",
-        });
-      }
-
-      if (request.url === TOKEN_ENDPOINT) {
-        return json({
-          access_token: "pmth_long_lived",
-          token_type: "Bearer",
-          expires_in: 90 * 24 * 60 * 60,
-          issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
-          scope: "sign:job",
-        });
-      }
-
-      throw new Error(`Unexpected request: ${request.url}`);
-    };
+    const { requests, bodies, fetchImpl } = createSignerSessionFetch();
 
     const token = await createClient(fetchImpl).mintUserSignerSessionToken({
       externalUserId: "user-1",
@@ -130,45 +140,7 @@ describe("PmtHouseClient signer session exchange", () => {
   it("forwards an explicit resource unchanged on signer session exchange", async () => {
     clearDiscoveryCache(ISSUER);
     const explicitResource = "https://explicit.resource";
-    const requests: Request[] = [];
-    const bodies: string[] = [];
-    const fetchImpl: typeof fetch = async (input, init) => {
-      const request = new Request(input, init);
-      requests.push(request);
-      bodies.push(await request.clone().text());
-
-      if (request.url.endsWith("/.well-known/openid-configuration")) {
-        return json({
-          issuer: ISSUER,
-          authorization_endpoint: `${ISSUER}/authorize`,
-          token_endpoint: TOKEN_ENDPOINT,
-          jwks_uri: `${ISSUER}/jwks`,
-        });
-      }
-
-      if (request.url === USER_TOKEN_ENDPOINT) {
-        return json({
-          access_token: "eyJ.short.jwt",
-          refresh_token: "refresh",
-          token_type: "Bearer",
-          expires_in: 900,
-          scope: "sign:job",
-          subject_type: "app_user",
-        });
-      }
-
-      if (request.url === TOKEN_ENDPOINT) {
-        return json({
-          access_token: "pmth_long_lived",
-          token_type: "Bearer",
-          expires_in: 90 * 24 * 60 * 60,
-          issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
-          scope: "sign:job",
-        });
-      }
-
-      throw new Error(`Unexpected request: ${request.url}`);
-    };
+    const { requests, bodies, fetchImpl } = createSignerSessionFetch();
 
     const token = await createClient(fetchImpl).mintUserSignerSessionToken({
       externalUserId: "user-1",

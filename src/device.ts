@@ -7,12 +7,19 @@ import {
   processDeviceAuthorizationResponse,
   processDeviceCodeResponse,
   ResponseBodyError,
+  type AuthorizationServer,
   type Client,
+  type DeviceAuthorizationRequestOptions,
+  type DeviceAuthorizationResponse,
+  type TokenEndpointRequestOptions,
+  type TokenEndpointResponse,
 } from "oauth4webapi";
 import { loadAuthorizationServer } from "./discovery.js";
 import { PmtHouseError } from "./errors.js";
 import { mapOAuthError } from "./oauth-map.js";
 import type { FetchLike } from "./types.js";
+
+type DeviceOAuthHttpOptions = DeviceAuthorizationRequestOptions & TokenEndpointRequestOptions;
 
 export interface PollDeviceTokenOptions {
   issuerUrl: string;
@@ -39,15 +46,104 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       "abort",
       () => {
         clearTimeout(t);
-        reject(
-          signal.reason instanceof Error
-            ? signal.reason
-            : new Error(typeof signal.reason === "string" ? signal.reason : "Aborted"),
-        );
+        reject(abortReasonToError(signal.reason));
       },
       { once: true },
     );
   });
+}
+
+function abortReasonToError(reason: unknown): Error {
+  if (reason instanceof Error) {
+    return reason;
+  }
+
+  if (typeof reason === "string") {
+    return new Error(reason);
+  }
+
+  return new Error("Aborted");
+}
+
+function createOAuthHttpOptions(
+  fetchImpl: FetchLike,
+  allowInsecureHttp?: boolean,
+): DeviceOAuthHttpOptions {
+  const httpOpts: DeviceOAuthHttpOptions = {
+    [customFetch]: fetchImpl,
+  };
+  if (allowInsecureHttp) {
+    httpOpts[allowInsecureRequests] = true;
+  }
+  return httpOpts;
+}
+
+async function requestDeviceAuthorization(
+  as: AuthorizationServer,
+  client: Client,
+  params: URLSearchParams,
+  httpOpts: DeviceOAuthHttpOptions,
+): Promise<DeviceAuthorizationResponse> {
+  let deviceResponse: Response;
+  try {
+    deviceResponse = await deviceAuthorizationRequest(
+      as,
+      client,
+      None(),
+      params,
+      httpOpts,
+    );
+  } catch (e) {
+    throw mapOAuthError(e);
+  }
+
+  try {
+    return await processDeviceAuthorizationResponse(as, client, deviceResponse);
+  } catch (e) {
+    throw mapOAuthError(e);
+  }
+}
+
+type DevicePollResult =
+  | { kind: "success"; token: TokenEndpointResponse }
+  | { kind: "authorization_pending" }
+  | { kind: "slow_down" };
+
+async function pollDeviceCode(
+  as: AuthorizationServer,
+  client: Client,
+  deviceCode: string,
+  httpOpts: DeviceOAuthHttpOptions,
+): Promise<DevicePollResult> {
+  let tokenResponse: Response;
+  try {
+    tokenResponse = await deviceCodeGrantRequest(
+      as,
+      client,
+      None(),
+      deviceCode,
+      httpOpts,
+    );
+  } catch (e) {
+    throw mapOAuthError(e);
+  }
+
+  try {
+    return {
+      kind: "success",
+      token: await processDeviceCodeResponse(as, client, tokenResponse),
+    };
+  } catch (e) {
+    if (e instanceof ResponseBodyError && e.error === "authorization_pending") {
+      return { kind: "authorization_pending" };
+    }
+
+    if (e instanceof ResponseBodyError && e.error === "slow_down") {
+      return { kind: "slow_down" };
+    }
+
+    throw mapOAuthError(e);
+  }
 }
 
 /**
@@ -56,7 +152,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
  */
 export async function pollDeviceToken(
   options: PollDeviceTokenOptions,
-): Promise<import("oauth4webapi").TokenEndpointResponse> {
+): Promise<TokenEndpointResponse> {
   const fetchImpl = options.fetch ?? fetch;
   const as = await loadAuthorizationServer(options.issuerUrl, fetchImpl, {
     allowInsecureHttp: options.allowInsecureHttp,
@@ -75,32 +171,8 @@ export async function pollDeviceToken(
     params.set("scope", options.scope);
   }
 
-  const httpOpts: Record<symbol, unknown> = {
-    [customFetch]: fetchImpl,
-  };
-  if (options.allowInsecureHttp) {
-    httpOpts[allowInsecureRequests] = true;
-  }
-
-  let deviceResponse: Response;
-  try {
-    deviceResponse = await deviceAuthorizationRequest(
-      as,
-      client,
-      None(),
-      params,
-      httpOpts as import("oauth4webapi").DeviceAuthorizationRequestOptions,
-    );
-  } catch (e) {
-    throw mapOAuthError(e);
-  }
-
-  let dar: import("oauth4webapi").DeviceAuthorizationResponse;
-  try {
-    dar = await processDeviceAuthorizationResponse(as, client, deviceResponse);
-  } catch (e) {
-    throw mapOAuthError(e);
-  }
+  const httpOpts = createOAuthHttpOptions(fetchImpl, options.allowInsecureHttp);
+  const dar = await requestDeviceAuthorization(as, client, params, httpOpts);
 
   options.onUserCode?.({
     userCode: dar.user_code,
@@ -116,9 +188,7 @@ export async function pollDeviceToken(
 
   while (Date.now() < deadline) {
     if (options.signal?.aborted) {
-      throw options.signal.reason instanceof Error
-        ? options.signal.reason
-        : new Error("Aborted");
+      throw abortReasonToError(options.signal.reason);
     }
 
     if (!firstPoll) {
@@ -126,32 +196,13 @@ export async function pollDeviceToken(
     }
     firstPoll = false;
 
-    let tokenResponse: Response;
-    try {
-      tokenResponse = await deviceCodeGrantRequest(
-        as,
-        client,
-        None(),
-        dar.device_code,
-        httpOpts as import("oauth4webapi").TokenEndpointRequestOptions,
-      );
-    } catch (e) {
-      throw mapOAuthError(e);
+    const pollResult = await pollDeviceCode(as, client, dar.device_code, httpOpts);
+    if (pollResult.kind === "success") {
+      return pollResult.token;
     }
 
-    try {
-      return await processDeviceCodeResponse(as, client, tokenResponse);
-    } catch (e) {
-      if (e instanceof ResponseBodyError) {
-        if (e.error === "authorization_pending") {
-          continue;
-        }
-        if (e.error === "slow_down") {
-          pollIntervalMs += 5000;
-          continue;
-        }
-      }
-      throw mapOAuthError(e);
+    if (pollResult.kind === "slow_down") {
+      pollIntervalMs += 5000;
     }
   }
 

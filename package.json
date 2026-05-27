@@ -46,6 +46,21 @@
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js",
       "require": "./dist/verify.cjs"
+    },
+    "./gateway": {
+      "types": "./dist/gateway/browser.d.ts",
+      "import": "./dist/gateway/browser.js",
+      "require": "./dist/gateway/browser.cjs"
+    },
+    "./gateway/ui": {
+      "types": "./dist/gateway/ui.d.ts",
+      "import": "./dist/gateway/ui.js",
+      "require": "./dist/gateway/ui.cjs"
+    },
+    "./gateway/server": {
+      "types": "./dist/gateway/server.d.ts",
+      "import": "./dist/gateway/server.js",
+      "require": "./dist/gateway/server.cjs"
     }
   },
   "files": [
@@ -70,11 +85,15 @@
     "prepack": "pnpm run build"
   },
   "dependencies": {
-    "oauth4webapi": "^3.8.5"
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
+    "oauth4webapi": "^3.8.5",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.0",
+    "@types/ws": "^8.18.1",
     "eslint": "^9.18.0",
     "prettier": "^3.4.2",
     "tsup": "^8.3.5",
