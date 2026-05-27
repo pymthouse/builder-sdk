@@ -97,14 +97,23 @@ export interface UsageQueryInput {
 
 export interface UsageTotals {
   requestCount: number;
-  totalFeeWei: string;
+  totalFeeWei?: string;
+  currency?: string;
+  networkFeeUsdMicros?: string;
+  ownerChargeUsdMicros?: string;
+  platformFeeUsdMicros?: string;
+  endUserBillableUsdMicros?: string;
 }
 
 export interface UsageByUserRow {
   endUserId: string;
   externalUserId: string | null;
   requestCount: number;
-  feeWei: string;
+  feeWei?: string;
+  currency?: string;
+  networkFeeUsdMicros?: string;
+  ownerChargeUsdMicros?: string;
+  endUserBillableUsdMicros?: string;
   userType?: "system_managed" | "oidc_authorized" | "unknown";
   identifier?: string;
 }
@@ -114,7 +123,8 @@ export interface UsageByPipelineModelRow {
   pipeline: string;
   modelId: string;
   requestCount: number;
-  networkFeeWei: string;
+  currency?: string;
+  networkFeeWei?: string;
   networkFeeEth?: string;
   networkFeeUsdMicros: string;
   ownerChargeUsdMicros: string;
@@ -152,4 +162,61 @@ export interface ParsedDeviceApprovalRedirect {
   targetLinkUri: string;
   userCode: string;
   clientId: string;
+}
+
+export interface AppManifestCapability {
+  pipeline: string;
+  modelId: string;
+}
+
+export interface AppManifestResponse {
+  /** PymtHouse-local resolved set; informational, not a complete integrator allowlist. */
+  capabilities: AppManifestCapability[];
+  /** Authoritative exclusions from the Network Price plan. */
+  excludedCapabilities?: AppManifestCapability[];
+  /** Server-computed revision for cache busting when present. */
+  manifestVersion?: string;
+}
+
+export interface GetAppManifestResult {
+  manifest: AppManifestResponse | null;
+  etag: string | null;
+  notModified: boolean;
+}
+
+export interface UsageByPipelineModelFiatRow {
+  pipeline: string;
+  modelId: string;
+  requestCount: number;
+  currency: string;
+  networkFeeUsdMicros: string;
+  ownerChargeUsdMicros: string;
+  endUserBillableUsdMicros: string;
+}
+
+export interface MeScopeUsagePayload {
+  clientId: string;
+  period: UsageApiResponse["period"];
+  currentUser: {
+    externalUserId: string;
+    requestCount: number;
+    currency: string;
+    networkFeeUsdMicros: string;
+    ownerChargeUsdMicros: string;
+    endUserBillableUsdMicros: string;
+    pipelineModels: UsageByPipelineModelFiatRow[];
+  };
+}
+
+export interface MintSignerSessionForExternalUserInput {
+  externalUserId: string;
+  email?: string;
+  scope?: string;
+}
+
+export interface ApproveDeviceLoginInput {
+  externalUserId: string;
+  userCode: string;
+  email?: string;
+  publicClientId?: string;
 }

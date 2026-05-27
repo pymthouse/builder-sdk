@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   aggregateUsageByExternalUserId,
+  buildMeScopeUsagePayload,
+  getEndUserIdsForExternalUser,
+  getUtcCalendarMonthIsoBounds,
   listUsageByPipelineModel,
+  parseUsageDateParam,
   summarizeUsageForExternalUser,
 } from "../src/usage.js";
 import type { UsageApiResponse, UsageByUserRow } from "../src/types.js";
@@ -123,5 +127,67 @@ describe("usage aggregation", () => {
       "a-pipe:m2",
       "b-pipe:m1",
     ]);
+  });
+
+  it("parseUsageDateParam accepts ISO and rejects junk", () => {
+    expect(parseUsageDateParam("2025-04-01T00:00:00.000Z")).toBe("2025-04-01T00:00:00.000Z");
+    expect(parseUsageDateParam("not-a-date")).toBeNull();
+  });
+
+  it("buildMeScopeUsagePayload aggregates fiat fields for external user", () => {
+    const body = buildMeScopeUsagePayload(
+      {
+        clientId: "app",
+        period: { start: null, end: null },
+        totals: { requestCount: 0 },
+        byUser: [
+          {
+            endUserId: "a",
+            externalUserId: "naap-user-id",
+            requestCount: 19,
+            networkFeeUsdMicros: "1900000",
+            ownerChargeUsdMicros: "2000000",
+            endUserBillableUsdMicros: "2100000",
+            currency: "USD",
+          },
+          {
+            endUserId: "b",
+            externalUserId: "naap-user-id",
+            requestCount: 43,
+            networkFeeUsdMicros: "4300000",
+            ownerChargeUsdMicros: "4400000",
+            endUserBillableUsdMicros: "4500000",
+            currency: "USD",
+          },
+        ],
+      },
+      "naap-user-id",
+    );
+    expect(body.currentUser.requestCount).toBe(62);
+    expect(body.currentUser.networkFeeUsdMicros).toBe("6200000");
+  });
+
+  it("getEndUserIdsForExternalUser skips unknown endUserId", () => {
+    expect(
+      getEndUserIdsForExternalUser(
+        {
+          clientId: "app",
+          period: { start: null, end: null },
+          totals: { requestCount: 0 },
+          byUser: [
+            { endUserId: "app-user-id", externalUserId: "me", requestCount: 1 },
+            { endUserId: "unknown", externalUserId: "me", requestCount: 4 },
+          ],
+        },
+        "me",
+      ),
+    ).toEqual(["app-user-id"]);
+  });
+
+  it("getUtcCalendarMonthIsoBounds returns ordered ISO strings", () => {
+    const fixed = new Date(Date.UTC(2026, 3, 15, 12, 0, 0));
+    const { startDate, endDate } = getUtcCalendarMonthIsoBounds(fixed);
+    expect(startDate < endDate).toBe(true);
+    expect(startDate.startsWith("2026-04-01")).toBe(true);
   });
 });

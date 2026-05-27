@@ -66,14 +66,52 @@ const signerSession = await client.mintUserSignerSessionToken({
 For advanced flows that already have a user JWT, call
 `exchangeForSignerSession({ userJwt })` directly.
 
+Integrators can use the higher-level workflow helpers:
+
+```ts
+const session = await client.mintSignerSessionForExternalUser({
+  externalUserId: "naap-user-123",
+  email: "user@example.com",
+});
+// session.accessToken is opaque pmth_…
+
+await client.approveDeviceLogin({
+  externalUserId: "naap-user-123",
+  userCode: "ABCD-EFGH",
+  publicClientId: process.env.PYMTHOUSE_PUBLIC_CLIENT_ID,
+});
+```
+
+## Usage API: session-scoped `scope=me` BFF helper
+
+```ts
+const payload = await client.fetchUsageForExternalUser({
+  externalUserId: "naap-user-123",
+  startDate,
+  endDate,
+});
+// payload.currentUser includes fiat totals + merged pipelineModels
+```
+
+## App manifest
+
+```ts
+const { manifest, etag, notModified } = await client.getAppManifest({
+  ifNoneMatch: cachedEtag ?? undefined,
+});
+```
+
 ## Subpath exports
 
 | Import | Purpose |
 |--------|---------|
-| `@pymthouse/builder-sdk` | `PmtHouseClient`, discovery cache, errors, usage aggregation helpers |
+| `@pymthouse/builder-sdk` | `PmtHouseClient`, usage helpers, manifest parsers, token helpers |
+| `@pymthouse/builder-sdk/config` | `isPymthouseConfigured`, `readPymthouseEnv` (Edge/middleware-safe) |
+| `@pymthouse/builder-sdk/tokens` | Signer session TTL, JWT shape helpers, `parseSignerSessionExchange` |
 | `@pymthouse/builder-sdk/format` | Wei formatting for Usage API |
-| `@pymthouse/builder-sdk/env` | `createPmtHouseClientFromEnv`, `getPymthouseBaseUrl` |
+| `@pymthouse/builder-sdk/env` | `createPmtHouseClientFromEnv`, `getPymthouseBaseUrl` (server-only) |
 | `@pymthouse/builder-sdk/device` | RFC 8628 `pollDeviceToken` |
+| `@pymthouse/builder-sdk/device-initiate` | Option B device login validation (Edge-safe) |
 | `@pymthouse/builder-sdk/verify` | RFC 9068 `verifyJwt` |
 
 ## Usage API: duplicate `byUser` rows
