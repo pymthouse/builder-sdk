@@ -18,7 +18,7 @@ describe("PmtHouseClient.getUsage", () => {
   it("includes gatewayRequestId as a query param on the outgoing request", async () => {
     const captured: { url?: string } = {};
     const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-      captured.url = typeof input === "string" ? input : (input as URL | Request).toString();
+      captured.url = input instanceof Request ? input.url : input.toString();
       return new Response(
         JSON.stringify({
           clientId: "app_x",

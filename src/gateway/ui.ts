@@ -1,5 +1,5 @@
 import { PmtHouseGatewayClient } from "./browser.js";
-import type { BYOCJobRecord, BYOCJobRequestInput } from "./types.js";
+import type { BYOCJobRecord } from "./types.js";
 
 const ELEMENT_TAG = "pymthouse-gateway";
 

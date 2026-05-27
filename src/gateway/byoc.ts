@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { CapabilityId } from "./capabilities.js";
+import { buildCapabilities, CapabilityId } from "./capabilities.js";
 import {
   GatewayError,
   NoOrchestratorAvailableError,
@@ -22,7 +22,23 @@ import type {
   BYOCJobStartOptions,
   OrchestratorInfoMessage,
 } from "./types.js";
-import { buildCapabilities } from "./capabilities.js";
+
+type StartByocOptions = BYOCJobStartOptions & {
+  billingBaseUrl?: string;
+  fetchImpl?: typeof fetch;
+};
+
+type ResolvedByocStartConfig = {
+  signerUrl?: string;
+  signerHeaders?: Record<string, string>;
+  discoveryUrl?: string;
+  discoveryHeaders?: Record<string, string>;
+  orchestrators?: string | string[];
+  capabilityName: string;
+  capabilities: ReturnType<typeof buildCapabilities>;
+  useTofu: boolean;
+  fetchImpl?: typeof fetch;
+};
 
 function fieldValue(obj: OrchestratorInfoMessage, snake: string, camel: string): unknown {
   if (snake in obj) return obj[snake];
@@ -289,6 +305,84 @@ export interface StartedBYOCJob {
   paymentSession: BYOCPaymentSession;
 }
 
+function createByocPayloads(
+  req: BYOCJobRequestInput,
+  jobId: string,
+): { requestJson: string; parametersJson: string; startPayload: Record<string, unknown> } {
+  const requestPayload: Record<string, unknown> = {};
+  if (req.request) {
+    Object.assign(requestPayload, req.request);
+  }
+  requestPayload.stream_id = req.streamId ?? jobId;
+
+  const parametersPayload: Record<string, unknown> = {
+    enable_video_ingress: req.enableVideoIngress ?? true,
+    enable_video_egress: req.enableVideoEgress ?? true,
+    enable_data_output: req.enableDataOutput ?? false,
+  };
+  if (req.parameters) {
+    Object.assign(parametersPayload, req.parameters);
+  }
+
+  const startPayload: Record<string, unknown> = {};
+  if (req.body) {
+    Object.assign(startPayload, req.body);
+  }
+  startPayload.stream_id = req.streamId ?? jobId;
+
+  return {
+    requestJson: JSON.stringify(requestPayload),
+    parametersJson: JSON.stringify(parametersPayload),
+    startPayload,
+  };
+}
+
+function resolveByocStartConfig(
+  req: BYOCJobRequestInput,
+  options: StartByocOptions,
+): ResolvedByocStartConfig {
+  if (!req.capability?.trim()) {
+    throw new GatewayError("start_byoc_job requires a non-empty capability");
+  }
+
+  let signerUrl = options.signerUrl;
+  let signerHeaders = options.signerHeaders;
+  let discoveryUrl = options.discoveryUrl;
+  let discoveryHeaders = options.discoveryHeaders;
+  let orchestrators = options.orchestrators;
+
+  if (options.token) {
+    const tokenData = parseGatewayToken(options.token);
+    const resolved = resolveTokenSignerConfig(tokenData, options.billingBaseUrl);
+    signerUrl ??= resolved.signerUrl;
+    signerHeaders ??= resolved.signerHeaders;
+    discoveryUrl ??= resolved.discoveryUrl;
+    discoveryHeaders ??= resolved.discoveryHeaders;
+    orchestrators ??= resolved.orchestrators;
+  }
+
+  const capabilityName = req.capability.trim();
+  return {
+    signerUrl,
+    signerHeaders,
+    discoveryUrl,
+    discoveryHeaders,
+    orchestrators,
+    capabilityName,
+    capabilities: buildCapabilities(CapabilityId.BYOC, capabilityName),
+    useTofu: options.useTofu ?? true,
+    fetchImpl: options.fetchImpl,
+  };
+}
+
+function getTranscoderUrl(paymentInfo: OrchestratorInfoMessage): string {
+  const transcoder = fieldValue(paymentInfo, "transcoder", "transcoder");
+  if (typeof transcoder !== "string" || !transcoder) {
+    throw new GatewayError("OrchestratorInfo missing transcoder URL");
+  }
+  return transcoder;
+}
+
 async function getStartPaymentHeaders(
   session: BYOCPaymentSession,
   paymentInfo: OrchestratorInfoMessage,
@@ -316,44 +410,152 @@ async function getStartPaymentHeaders(
   }
 }
 
+async function postStartWithPaymentRetry(
+  params: {
+    startUrl: string;
+    startPayload: Record<string, unknown>;
+    headers: Record<string, string>;
+    signedJobHeader: string;
+    timeoutSeconds: number;
+    session: BYOCPaymentSession;
+    paymentInfo: OrchestratorInfoMessage;
+    capabilityName: string;
+    fetchImpl?: typeof fetch;
+  },
+): Promise<Awaited<ReturnType<typeof postByocJson>>> {
+  try {
+    return await postByocJson(params.startUrl, params.startPayload, params.headers, "start", {
+      timeoutMs: params.timeoutSeconds * 1000,
+      fetchImpl: params.fetchImpl,
+    });
+  } catch (error) {
+    if (!(error instanceof PaymentRequiredError)) throw error;
+    const retryHeaders = await getStartPaymentHeaders(
+      params.session,
+      params.paymentInfo,
+      params.capabilityName,
+      false,
+    );
+    const retryPaymentHeader = retryHeaders.paymentHeader;
+    if (!retryPaymentHeader) {
+      throw new GatewayError("BYOC start retry requires a payment header");
+    }
+    return postByocJson(
+      params.startUrl,
+      params.startPayload,
+      {
+        Livepeer: params.signedJobHeader,
+        "Livepeer-Payment": retryPaymentHeader,
+        "Livepeer-Segment": retryHeaders.segmentHeader,
+      },
+      "start",
+      { timeoutMs: params.timeoutSeconds * 1000, fetchImpl: params.fetchImpl },
+    );
+  }
+}
+
+async function startSelectedByocJob(
+  selectedUrl: string,
+  req: BYOCJobRequestInput,
+  config: ResolvedByocStartConfig,
+): Promise<StartedBYOCJob> {
+  const [paymentInfo] = await getPaymentOrchInfo(selectedUrl, {
+    signerUrl: config.signerUrl,
+    signerHeaders: config.signerHeaders,
+    capabilities: config.capabilities,
+    capabilityName: config.capabilityName,
+    useTofu: config.useTofu,
+    fetchImpl: config.fetchImpl,
+  });
+
+  const session = new BYOCPaymentSession(
+    config.signerUrl,
+    paymentInfo,
+    config.capabilityName,
+    config.signerHeaders,
+    config.capabilities,
+    req.streamPaymentEndpoint ?? "/ai/stream/payment",
+    config.useTofu,
+    config.fetchImpl,
+  );
+  const jobId = req.requestId?.trim() || req.streamId?.trim() || randomUUID().replaceAll("-", "");
+  const { requestJson, parametersJson, startPayload } = createByocPayloads(req, jobId);
+  const timeoutSeconds = Math.max(1, req.timeoutSeconds ?? 30);
+  const signed = await session.signByocJob({
+    jobId,
+    capability: config.capabilityName,
+    request: requestJson,
+    parameters: parametersJson,
+    timeoutSeconds,
+  });
+  const signedJobHeader = buildSignedJobHeader({
+    id: jobId,
+    request: requestJson,
+    parameters: parametersJson,
+    capability: config.capabilityName,
+    sender: signed.sender,
+    sig: signed.signature,
+    timeout_seconds: timeoutSeconds,
+  });
+  const { paymentHeader, segmentHeader } = await getStartPaymentHeaders(
+    session,
+    paymentInfo,
+    config.capabilityName,
+    true,
+  );
+  const headers: Record<string, string> = { Livepeer: signedJobHeader };
+  if (paymentHeader) {
+    headers["Livepeer-Payment"] = paymentHeader;
+    headers["Livepeer-Segment"] = segmentHeader;
+  }
+  const startUrl = resolveTranscoderHttpUrl(
+    getTranscoderUrl(paymentInfo),
+    req.streamStartEndpoint ?? "/ai/stream/start",
+  );
+  const data = await postStartWithPaymentRetry({
+    startUrl,
+    startPayload,
+    headers,
+    signedJobHeader,
+    timeoutSeconds,
+    session,
+    paymentInfo,
+    capabilityName: config.capabilityName,
+    fetchImpl: config.fetchImpl,
+  });
+  const responseHeaders = data.headers;
+
+  return {
+    job: {
+      jobId,
+      capability: config.capabilityName,
+      publishUrl: headerGet(responseHeaders, "X-Publish-Url"),
+      subscribeUrl: headerGet(responseHeaders, "X-Subscribe-Url"),
+      controlUrl: headerGet(responseHeaders, "X-Control-Url"),
+      eventsUrl: headerGet(responseHeaders, "X-Events-Url"),
+      dataUrl: headerGet(responseHeaders, "X-Data-Url"),
+      status: "running",
+    },
+    signedJobHeader,
+    streamStopUrl: deriveStreamStopUrl(startUrl, jobId),
+    paymentSession: session,
+  };
+}
+
 export async function startByocJob(
   req: BYOCJobRequestInput,
-  options: BYOCJobStartOptions & {
-    billingBaseUrl?: string;
-    fetchImpl?: typeof fetch;
-  } = {},
+  options: StartByocOptions = {},
 ): Promise<StartedBYOCJob> {
-  if (!req.capability?.trim()) {
-    throw new GatewayError("start_byoc_job requires a non-empty capability");
-  }
-
-  let resolvedSignerUrl = options.signerUrl;
-  let resolvedSignerHeaders = options.signerHeaders;
-  let resolvedDiscoveryUrl = options.discoveryUrl;
-  let resolvedDiscoveryHeaders = options.discoveryHeaders;
-  let orchestrators = options.orchestrators;
-
-  if (options.token) {
-    const tokenData = parseGatewayToken(options.token);
-    const resolved = resolveTokenSignerConfig(tokenData, options.billingBaseUrl);
-    resolvedSignerUrl ??= resolved.signerUrl;
-    resolvedSignerHeaders ??= resolved.signerHeaders;
-    resolvedDiscoveryUrl ??= resolved.discoveryUrl;
-    resolvedDiscoveryHeaders ??= resolved.discoveryHeaders;
-    orchestrators ??= resolved.orchestrators;
-  }
-
-  const capabilityName = req.capability.trim();
-  const capabilities = buildCapabilities(CapabilityId.BYOC, capabilityName);
+  const config = resolveByocStartConfig(req, options);
   const cursor = await orchestratorSelector({
-    orchestrators,
-    signerUrl: resolvedSignerUrl,
-    signerHeaders: resolvedSignerHeaders,
-    discoveryUrl: resolvedDiscoveryUrl,
-    discoveryHeaders: resolvedDiscoveryHeaders,
-    capabilities,
-    useTofu: options.useTofu ?? true,
-    fetchImpl: options.fetchImpl,
+    orchestrators: config.orchestrators,
+    signerUrl: config.signerUrl,
+    signerHeaders: config.signerHeaders,
+    discoveryUrl: config.discoveryUrl,
+    discoveryHeaders: config.discoveryHeaders,
+    capabilities: config.capabilities,
+    useTofu: config.useTofu,
+    fetchImpl: config.fetchImpl,
   });
 
   const startRejections: Array<{ url: string; reason: string }> = [];
@@ -375,138 +577,7 @@ export async function startByocJob(
     }
 
     try {
-      const [paymentInfo] = await getPaymentOrchInfo(selectedUrl, {
-        signerUrl: resolvedSignerUrl,
-        signerHeaders: resolvedSignerHeaders,
-        capabilities,
-        capabilityName,
-        useTofu: options.useTofu ?? true,
-        fetchImpl: options.fetchImpl,
-      });
-
-      const session = new BYOCPaymentSession(
-        resolvedSignerUrl,
-        paymentInfo,
-        capabilityName,
-        resolvedSignerHeaders,
-        capabilities,
-        req.streamPaymentEndpoint ?? "/ai/stream/payment",
-        options.useTofu ?? true,
-        options.fetchImpl,
-      );
-
-      const jobId =
-        req.requestId?.trim() ||
-        req.streamId?.trim() ||
-        randomUUID().replace(/-/g, "");
-      const requestPayload = {
-        ...(req.request ?? {}),
-        stream_id: req.streamId ?? jobId,
-      };
-      const parametersPayload = {
-        enable_video_ingress: req.enableVideoIngress ?? true,
-        enable_video_egress: req.enableVideoEgress ?? true,
-        enable_data_output: req.enableDataOutput ?? false,
-        ...(req.parameters ?? {}),
-      };
-      const requestJson = JSON.stringify(requestPayload);
-      const parametersJson = JSON.stringify(parametersPayload);
-      const timeoutSeconds = Math.max(1, req.timeoutSeconds ?? 30);
-
-      const signed = await session.signByocJob({
-        jobId,
-        capability: capabilityName,
-        request: requestJson,
-        parameters: parametersJson,
-        timeoutSeconds,
-      });
-
-      const signedPayload = {
-        id: jobId,
-        request: requestJson,
-        parameters: parametersJson,
-        capability: capabilityName,
-        sender: signed.sender,
-        sig: signed.signature,
-        timeout_seconds: timeoutSeconds,
-      };
-      const signedJobHeader = buildSignedJobHeader(signedPayload);
-
-      let { paymentHeader, segmentHeader } = await getStartPaymentHeaders(
-        session,
-        paymentInfo,
-        capabilityName,
-        true,
-      );
-
-      const headers: Record<string, string> = { Livepeer: signedJobHeader };
-      if (paymentHeader) {
-        headers["Livepeer-Payment"] = paymentHeader;
-        headers["Livepeer-Segment"] = segmentHeader;
-      }
-
-      const transcoder = fieldValue(paymentInfo, "transcoder", "transcoder");
-      if (typeof transcoder !== "string" || !transcoder) {
-        throw new GatewayError("OrchestratorInfo missing transcoder URL");
-      }
-
-      const startUrl = resolveTranscoderHttpUrl(
-        transcoder,
-        req.streamStartEndpoint ?? "/ai/stream/start",
-      );
-      const stopUrl = deriveStreamStopUrl(startUrl, jobId);
-      const startPayload = {
-        ...(req.body ?? {}),
-        stream_id: req.streamId ?? jobId,
-      };
-
-      let data;
-      try {
-        data = await postByocJson(startUrl, startPayload, headers, "start", {
-          timeoutMs: timeoutSeconds * 1000,
-          fetchImpl: options.fetchImpl,
-        });
-      } catch (error) {
-        if (!(error instanceof PaymentRequiredError)) throw error;
-        const retryHeaders = await getStartPaymentHeaders(
-          session,
-          paymentInfo,
-          capabilityName,
-          false,
-        );
-        data = await postByocJson(
-          startUrl,
-          startPayload,
-          {
-            Livepeer: signedJobHeader,
-            "Livepeer-Payment": retryHeaders.paymentHeader!,
-            "Livepeer-Segment": retryHeaders.segmentHeader,
-          },
-          "start",
-          { timeoutMs: timeoutSeconds * 1000, fetchImpl: options.fetchImpl },
-        );
-      }
-
-      const responseHeaders =
-        typeof data.headers === "object" && data.headers !== null
-          ? (data.headers as Record<string, string>)
-          : {};
-
-      return {
-        job: {
-          jobId,
-          capability: capabilityName,
-          publishUrl: headerGet(responseHeaders, "X-Publish-Url"),
-          subscribeUrl: headerGet(responseHeaders, "X-Subscribe-Url"),
-          controlUrl: headerGet(responseHeaders, "X-Control-Url"),
-          eventsUrl: headerGet(responseHeaders, "X-Events-Url"),
-          dataUrl: headerGet(responseHeaders, "X-Data-Url"),
-          status: "running",
-        },
-        signedJobHeader,
-        streamStopUrl: stopUrl,
-        paymentSession: session,
-      };
+      return await startSelectedByocJob(selectedUrl, req, config);
     } catch (error) {
       startRejections.push({
         url: selectedUrl,

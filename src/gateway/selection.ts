@@ -1,5 +1,4 @@
 import {
-  GatewayError,
   NoOrchestratorAvailableError,
   type OrchestratorRejection,
 } from "./errors.js";
@@ -18,7 +17,7 @@ export class SelectionCursor {
   private readonly useTofu: boolean;
   private readonly fetchImpl?: typeof fetch;
   private batchStart = 0;
-  private pendingSuccesses: Array<[string, OrchestratorInfoMessage]> = [];
+  private readonly pendingSuccesses: Array<[string, OrchestratorInfoMessage]> = [];
   readonly rejections: OrchestratorRejection[] = [];
 
   constructor(
@@ -42,7 +41,10 @@ export class SelectionCursor {
   async next(): Promise<[string, OrchestratorInfoMessage]> {
     while (true) {
       if (this.pendingSuccesses.length > 0) {
-        return this.pendingSuccesses.shift()!;
+        const nextSuccess = this.pendingSuccesses.shift();
+        if (nextSuccess) {
+          return nextSuccess;
+        }
       }
       if (this.batchStart >= this.orchList.length) {
         throw new NoOrchestratorAvailableError(

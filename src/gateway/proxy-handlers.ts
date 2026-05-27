@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { URL } from "node:url";
 
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer, WebSocket, type RawData } from "ws";
 
 import { startByocJob } from "./byoc.js";
 import { GatewayError } from "./errors.js";
@@ -47,6 +47,24 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.end(body);
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return "Unexpected error";
+}
+
+function sendRequestError(res: ServerResponse, error: unknown): void {
+  const status = error instanceof GatewayError ? 502 : 500;
+  sendJson(res, status, {
+    error: errorMessage(error),
+    code: error instanceof GatewayError ? error.code : "internal_error",
+  });
+}
+
 function matchRoute(
   pathname: string,
   basePath: string,
@@ -82,6 +100,119 @@ async function resolveAuth(
   return resolveSignerFromRequest(req, options);
 }
 
+async function handleCreateJobRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  options: GatewayProxyOptions,
+  sessionStore: JobSessionStore,
+  basePath: string,
+): Promise<void> {
+  const auth = await resolveAuth(req, options);
+  if (!auth?.signerUrl) {
+    sendJson(res, 401, { error: "Unauthorized: missing signer session" });
+    return;
+  }
+
+  const body = (await readJsonBody(req)) as Record<string, unknown>;
+  const request = (body.request ?? {}) as BYOCJobRequestInput;
+  if (typeof body.capability === "string") request.capability = body.capability;
+
+  const started = await startByocJob(request, {
+    orchestrators: typeof body.orchestrators === "string" ? body.orchestrators : undefined,
+    token: typeof body.token === "string" ? body.token : undefined,
+    signerUrl: auth.signerUrl,
+    signerHeaders: auth.signerHeaders,
+    discoveryUrl: auth.discoveryUrl ?? options.discoveryUrl,
+    discoveryHeaders: auth.discoveryHeaders,
+    billingBaseUrl: options.billingBaseUrl,
+    useTofu: options.useTofu,
+  });
+
+  const session = attachStartedJob(sessionStore, started);
+  const proxy = jobProxyPaths(basePath, session.job.jobId);
+  sendJson(res, 200, { job: session.job, proxy });
+}
+
+async function streamEventsResponse(
+  res: ServerResponse,
+  session: import("./job-session.js").JobSession,
+): Promise<void> {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+  try {
+    for await (const event of streamJobEvents(session)) {
+      if (res.writableEnded) break;
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+  } catch (error) {
+    if (!res.writableEnded) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
+    }
+  }
+  res.end();
+}
+
+async function handleJobRequest(
+  route: { kind: "job"; jobId: string; action: string },
+  req: IncomingMessage,
+  res: ServerResponse,
+  sessionStore: JobSessionStore,
+): Promise<void> {
+  const session = sessionStore.get(route.jobId);
+  if (!session) {
+    sendJson(res, 404, { error: "Job not found" });
+    return;
+  }
+
+  if (route.action === "control" && req.method === "POST") {
+    const message = (await readJsonBody(req)) as Record<string, unknown>;
+    await sendControlMessage(session, message);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (route.action === "stop" && req.method === "POST") {
+    const result = await stopJobSession(session);
+    sessionStore.cleanup(session);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (route.action === "status" && req.method === "GET") {
+    sendJson(res, 200, {
+      jobId: session.job.jobId,
+      capability: session.job.capability,
+      status: session.job.status,
+      error: session.error,
+    });
+    return;
+  }
+
+  if (route.action === "events" && req.method === "GET") {
+    await streamEventsResponse(res, session);
+    return;
+  }
+
+  sendJson(res, 405, { error: "Method not allowed" });
+}
+
+function websocketMessageToText(raw: RawData): string {
+  if (typeof raw === "string") {
+    return raw;
+  }
+  if (Buffer.isBuffer(raw)) {
+    return raw.toString("utf8");
+  }
+  if (raw instanceof ArrayBuffer) {
+    return Buffer.from(raw).toString("utf8");
+  }
+  return Buffer.concat(raw).toString("utf8");
+}
+
 export function createGatewayHandlers(options: GatewayProxyOptions = {}): GatewayHandlers {
   const basePath = options.basePath ?? "/pymthouse/gateway";
   const sessionStore = new JobSessionStore();
@@ -95,97 +226,19 @@ export function createGatewayHandlers(options: GatewayProxyOptions = {}): Gatewa
 
     try {
       if (route.kind === "jobs" && req.method === "POST") {
-        const auth = await resolveAuth(req, options);
-        if (!auth?.signerUrl) {
-          sendJson(res, 401, { error: "Unauthorized: missing signer session" });
-          return true;
-        }
-
-        const body = (await readJsonBody(req)) as Record<string, unknown>;
-        const request = (body.request ?? {}) as BYOCJobRequestInput;
-        if (typeof body.capability === "string") request.capability = body.capability;
-        if (typeof body.token === "string") {
-          /* passed via start options */
-        }
-
-        const started = await startByocJob(request, {
-          orchestrators: typeof body.orchestrators === "string" ? body.orchestrators : undefined,
-          token: typeof body.token === "string" ? body.token : undefined,
-          signerUrl: auth.signerUrl,
-          signerHeaders: auth.signerHeaders,
-          discoveryUrl: auth.discoveryUrl ?? options.discoveryUrl,
-          discoveryHeaders: auth.discoveryHeaders,
-          billingBaseUrl: options.billingBaseUrl,
-          useTofu: options.useTofu,
-        });
-
-        const session = attachStartedJob(sessionStore, started);
-        const proxy = jobProxyPaths(basePath, session.job.jobId);
-        sendJson(res, 200, { job: session.job, proxy });
+        await handleCreateJobRequest(req, res, options, sessionStore, basePath);
         return true;
       }
 
       if (route.kind === "job") {
-        const session = sessionStore.get(route.jobId);
-        if (!session) {
-          sendJson(res, 404, { error: "Job not found" });
-          return true;
-        }
-
-        if (route.action === "control" && req.method === "POST") {
-          const message = (await readJsonBody(req)) as Record<string, unknown>;
-          await sendControlMessage(session, message);
-          sendJson(res, 200, { ok: true });
-          return true;
-        }
-
-        if (route.action === "stop" && req.method === "POST") {
-          const result = await stopJobSession(session);
-          sessionStore.cleanup(session);
-          sendJson(res, 200, result);
-          return true;
-        }
-
-        if (route.action === "status" && req.method === "GET") {
-          sendJson(res, 200, {
-            jobId: session.job.jobId,
-            capability: session.job.capability,
-            status: session.job.status,
-            error: session.error,
-          });
-          return true;
-        }
-
-        if (route.action === "events" && req.method === "GET") {
-          res.writeHead(200, {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-          });
-          try {
-            for await (const event of streamJobEvents(session)) {
-              if (res.writableEnded) break;
-              res.write(`data: ${JSON.stringify(event)}\n\n`);
-            }
-          } catch (error) {
-            if (!res.writableEnded) {
-              const message = error instanceof Error ? error.message : String(error);
-              res.write(`event: error\ndata: ${JSON.stringify({ error: message })}\n\n`);
-            }
-          }
-          res.end();
-          return true;
-        }
+        await handleJobRequest(route, req, res, sessionStore);
+        return true;
       }
 
       sendJson(res, 405, { error: "Method not allowed" });
       return true;
     } catch (error) {
-      const status = error instanceof GatewayError ? 502 : 500;
-      sendJson(res, status, {
-        error: error instanceof Error ? error.message : String(error),
-        code: error instanceof GatewayError ? error.code : "internal_error",
-      });
+      sendRequestError(res, error);
       return true;
     }
   };
@@ -210,18 +263,6 @@ export function createGatewayHandlers(options: GatewayProxyOptions = {}): Gatewa
       void handleJobWebSocket(ws, session, sessionStore);
     });
     return true;
-  };
-
-  const onRequest = (req: IncomingMessage, res: ServerResponse) => {
-    void handleRequest(req, res);
-  };
-
-  const onUpgrade = (
-    req: IncomingMessage,
-    socket: import("node:stream").Duplex,
-    head: Buffer,
-  ) => {
-    void handleUpgrade(req, socket, head);
   };
 
   return {
@@ -260,7 +301,7 @@ async function handleJobWebSocket(
   ws.on("message", (raw) => {
     void (async () => {
       try {
-        const text = typeof raw === "string" ? raw : raw.toString("utf8");
+        const text = websocketMessageToText(raw);
         const message = JSON.parse(text) as { type?: string; payload?: Record<string, unknown> };
         if (message.type === "control" && message.payload) {
           await sendControlMessage(session, message.payload);
