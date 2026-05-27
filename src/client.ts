@@ -440,12 +440,14 @@ export class PmtHouseClient {
 
     if (!response.ok) {
       const details = (parsed ?? {}) as Record<string, unknown>;
-      const description =
-        typeof details.error_description === "string"
-          ? details.error_description
-          : typeof details.error === "string"
-            ? details.error
-            : `Request failed (${response.status})`;
+      let description: string;
+      if (typeof details.error_description === "string") {
+        description = details.error_description;
+      } else if (typeof details.error === "string") {
+        description = details.error;
+      } else {
+        description = `Request failed (${response.status})`;
+      }
       throw new PmtHouseError(description, {
         status: response.status,
         code: typeof details.error === "string" ? details.error : "pymthouse_http_error",
@@ -565,12 +567,14 @@ export class PmtHouseClient {
 
     if (!response.ok) {
       const details = (parsed ?? {}) as Record<string, unknown>;
-      const description =
-        typeof details.error_description === "string"
-          ? details.error_description
-          : typeof details.error === "string"
-            ? details.error
-            : `Request failed (${response.status})`;
+      let description: string;
+      if (typeof details.error_description === "string") {
+        description = details.error_description;
+      } else if (typeof details.error === "string") {
+        description = details.error;
+      } else {
+        description = `Request failed (${response.status})`;
+      }
 
       throw new PmtHouseError(description, {
         status: response.status,

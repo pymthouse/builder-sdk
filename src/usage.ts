@@ -163,11 +163,14 @@ export function summarizeUsageFiatForExternalUser(
 export function mergeUsageByPipelineModel(
   usagePipelineModels: UsageApiResponse | UsageApiResponse[] | undefined,
 ): UsageByPipelineModelFiatRow[] {
-  const responses = Array.isArray(usagePipelineModels)
-    ? usagePipelineModels
-    : usagePipelineModels
-      ? [usagePipelineModels]
-      : [];
+  let responses: UsageApiResponse[];
+  if (Array.isArray(usagePipelineModels)) {
+    responses = usagePipelineModels;
+  } else if (usagePipelineModels) {
+    responses = [usagePipelineModels];
+  } else {
+    responses = [];
+  }
   const byKey = new Map<string, UsageByPipelineModelFiatRow>();
 
   for (const response of responses) {

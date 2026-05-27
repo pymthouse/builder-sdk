@@ -50,7 +50,7 @@ export function isOpaqueSignerSessionToken(rawToken: string): boolean {
 }
 
 function base64UrlPayloadToUtf8(payloadB64: string): string {
-  const normalized = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
+  const normalized = payloadB64.replaceAll("-", "+").replaceAll("_", "/");
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
   if (typeof Buffer !== "undefined") {
     return Buffer.from(padded, "base64").toString("utf8");

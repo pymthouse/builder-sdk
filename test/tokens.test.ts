@@ -25,11 +25,13 @@ describe("tokens", () => {
   });
 
   it("decodeJwtExp reads exp without verifying signature", () => {
-    const payload = Buffer.from(JSON.stringify({ exp: 1_700_000_000 }), "utf8")
+    let payload = Buffer.from(JSON.stringify({ exp: 1_700_000_000 }), "utf8")
       .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/g, "");
+      .replaceAll("+", "-")
+      .replaceAll("/", "_");
+    while (payload.endsWith("=")) {
+      payload = payload.slice(0, -1);
+    }
     const jwt = `eyJhbGciOiJIUzI1NiJ9.${payload}.sig`;
     expect(decodeJwtExp(jwt)?.getTime()).toBe(1_700_000_000_000);
   });

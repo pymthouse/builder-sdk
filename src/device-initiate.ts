@@ -92,7 +92,7 @@ export function extractDeviceApprovalFromTargetLink(
   if (!userCodeRaw || !USER_CODE_RE.test(userCodeRaw)) {
     return { error: "invalid_user_code" };
   }
-  if (!clientIdRaw || !clientIdRaw.startsWith("app_")) {
+  if (!clientIdRaw?.startsWith("app_")) {
     return { error: "invalid_client_id" };
   }
   if (opts?.expectedPublicClientId && clientIdRaw !== opts.expectedPublicClientId) {
