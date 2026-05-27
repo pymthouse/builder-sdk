@@ -115,6 +115,75 @@ const { manifest, etag, notModified } = await client.getAppManifest({
 | `@pymthouse/builder-sdk/device` | RFC 8628 `pollDeviceToken` |
 | `@pymthouse/builder-sdk/device-initiate` | Option B device login validation (Edge-safe) |
 | `@pymthouse/builder-sdk/verify` | RFC 9068 `verifyJwt` |
+| `@pymthouse/builder-sdk/gateway` | Browser-safe BYOC gateway client (`PmtHouseGatewayClient`) |
+| `@pymthouse/builder-sdk/gateway/ui` | Lightweight Web Component (`definePmtHouseGatewayElement`) |
+| `@pymthouse/builder-sdk/gateway/server` | Opt-in Node HTTP/WebSocket proxy shim (server-only) |
+
+## Browser gateway: stream BYOC jobs through your app server
+
+Use the user's scoped signing JWT (`sign:job`) in the browser while keeping gRPC orchestrator
+discovery, self-signed TLS, and trickle streaming on your existing Node HTTP server.
+
+**Server (opt-in — no extra process):**
+
+```ts
+import http from "node:http";
+import { attachPmtHouseGatewayProxy } from "@pymthouse/builder-sdk/gateway/server";
+
+const server = http.createServer(/* your existing app handler */);
+
+attachPmtHouseGatewayProxy(server, {
+  billingBaseUrl: process.env.PYMTHOUSE_ISSUER_URL!,
+  basePath: "/pymthouse/gateway",
+});
+
+server.listen(3000);
+```
+
+The proxy exposes:
+
+- `POST /pymthouse/gateway/jobs` — start a BYOC job (requires `Authorization: Bearer <signer session>`)
+- `POST /pymthouse/gateway/jobs/:id/control` — send JSON control messages
+- `GET /pymthouse/gateway/jobs/:id/events` — SSE event stream
+- `POST /pymthouse/gateway/jobs/:id/stop` — stop the job
+- `WS /pymthouse/gateway/ws/:id` — optional bidirectional control/events bridge
+
+**Browser (headless client):**
+
+```ts
+import { PmtHouseGatewayClient } from "@pymthouse/builder-sdk/gateway";
+
+const gateway = new PmtHouseGatewayClient({
+  basePath: "/pymthouse/gateway",
+  accessToken: signerSessionToken,
+});
+
+const { job } = await gateway.startJob({ capability: "text-reversal" });
+await gateway.sendControl(job.jobId, { text: "hello" });
+for await (const event of gateway.events(job.jobId)) {
+  console.log(event);
+}
+await gateway.stopJob(job.jobId);
+```
+
+**Browser (Web Component):**
+
+```ts
+import { definePmtHouseGatewayElement } from "@pymthouse/builder-sdk/gateway/ui";
+
+definePmtHouseGatewayElement();
+```
+
+```html
+<pymthouse-gateway
+  capability="text-reversal"
+  base-path="/pymthouse/gateway"
+  access-token="pmth_…"
+></pymthouse-gateway>
+```
+
+The component dispatches `pymthouse-job-start`, `pymthouse-job-event`, `pymthouse-job-error`, and
+`pymthouse-job-stop` DOM events. Styling is minimal and overridable via CSS parts/custom properties.
 
 ## Usage API: duplicate `byUser` rows
 
