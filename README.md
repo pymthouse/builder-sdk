@@ -12,6 +12,8 @@ OAuth/OIDC protocol calls use **[oauth4webapi](https://github.com/panva/oauth4we
 pnpm add @pymthouse/builder-sdk
 ```
 
+Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for trusted publishing and re-running failed releases.
+
 ## Quick start
 
 ```ts

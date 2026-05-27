@@ -1,10 +1,20 @@
 # Provenance: package.json "repository.url" must be the same GitHub repo this
 # workflow runs in, or npm returns E422 when verifying the sigstore bundle.
+#
+# npm auth: Trusted Publishing (OIDC). Configure on npmjs.com for this repo and
+# workflow filename `release.yml`. Do not set secrets.NPM_TOKEN on publish — it
+# overrides OIDC and can cause EOTP. See docs/RELEASING.md.
 name: release
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.1.0)"
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -14,6 +24,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
       - uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a # v6
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -21,6 +33,7 @@ jobs:
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
           scope: "@pymthouse"
+          package-manager-cache: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
@@ -32,32 +45,25 @@ jobs:
             echo "::error::package.json repository.url must be ${EXPECTED} for npm provenance (got ${REPO_URL})"
             exit 1
           fi
-      - name: Verify NPM_TOKEN is configured
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "${NODE_AUTH_TOKEN}" ]; then
-            echo "::error::secrets.NPM_TOKEN is empty. Add an npm automation token (classic publish or granular write) in repo Settings → Secrets → Actions."
-            exit 1
-          fi
-      - name: Configure registry auth for pnpm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm config set "//registry.npmjs.org/:_authToken" "${NODE_AUTH_TOKEN}"
-      - run: pnpm publish --access public --no-git-checks --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Install npm CLI for trusted publishing
+        run: npm install -g npm@11.5.1
+      - name: Publish to npm via OIDC (trusted publishing)
+        # Use npm CLI (not pnpm publish): OIDC is implemented in npm, not pnpm.
+        # Do not set NODE_AUTH_TOKEN here — setup-node wires OIDC from id-token: write.
+        # Provenance is generated automatically with trusted publishing.
+        run: npm publish --access public --no-git-checks
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}"
           PKG=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
-          if gh release view "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "Release ${GITHUB_REF_NAME} already exists on ${GITHUB_REPOSITORY}; skipping create."
+          if gh release view "${TAG}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists on ${GITHUB_REPOSITORY}; skipping create."
             exit 0
           fi
-          gh release create "${GITHUB_REF_NAME}" \
+          gh release create "${TAG}" \
             -R "${GITHUB_REPOSITORY}" \
             --title "${PKG} v${VER}" \
             --generate-notes \
