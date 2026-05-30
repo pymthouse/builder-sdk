@@ -100,3 +100,91 @@ export function extractDeviceApprovalFromTargetLink(
   }
   return { userCode: userCodeRaw, publicClientId: clientIdRaw };
 }
+
+const KEYCLOAK_DEVICE_PATH = /^\/realms\/[^/]+\/device\/?$/;
+
+function keycloakDevicePathMatches(pathname: string): boolean {
+  return KEYCLOAK_DEVICE_PATH.test(pathname.endsWith("/") ? pathname : `${pathname}/`);
+}
+
+/**
+ * Validate third-party initiate login when the OP is Keycloak (target is `/realms/{realm}/device`).
+ */
+export function validateDeviceInitiateLoginForKeycloak(input: {
+  expectedIssuerUrl: string;
+  iss: string;
+  targetLinkUri: string;
+}): ValidateDeviceInitiateResult {
+  const expectedIss = stripTrailingSlashes(input.expectedIssuerUrl.trim());
+  let opOrigin: string;
+  try {
+    opOrigin = new URL(expectedIss).origin;
+  } catch {
+    return { ok: false, reason: "server_not_configured" };
+  }
+
+  if (normalizeIssuerUrl(input.iss) !== normalizeIssuerUrl(expectedIss)) {
+    return { ok: false, reason: "iss_mismatch" };
+  }
+
+  let target: URL;
+  try {
+    target = new URL(input.targetLinkUri);
+  } catch {
+    return { ok: false, reason: "bad_target_uri" };
+  }
+  if (target.origin !== opOrigin) {
+    return { ok: false, reason: "target_origin_mismatch" };
+  }
+  if (!keycloakDevicePathMatches(target.pathname)) {
+    return { ok: false, reason: "target_path_mismatch" };
+  }
+  if (target.hash) {
+    return { ok: false, reason: "target_has_hash" };
+  }
+  return { ok: true, returnUrl: target.href };
+}
+
+/**
+ * Parse Keycloak device verification URL (`/realms/{realm}/device?user_code=…&client_id=…`).
+ */
+export function extractDeviceApprovalFromKeycloakTargetLink(
+  targetHref: string,
+  opts?: { expectedIssuerUrl?: string; expectedPublicClientId?: string },
+): DeviceApprovalTuple {
+  let target: URL;
+  try {
+    target = new URL(targetHref);
+  } catch {
+    return { error: "bad_target_uri" };
+  }
+
+  if (opts?.expectedIssuerUrl) {
+    let opOrigin: string;
+    try {
+      opOrigin = new URL(stripTrailingSlashes(opts.expectedIssuerUrl.trim())).origin;
+    } catch {
+      return { error: "target_origin_mismatch" };
+    }
+    if (target.origin !== opOrigin) {
+      return { error: "target_origin_mismatch" };
+    }
+  }
+
+  if (!keycloakDevicePathMatches(target.pathname)) {
+    return { error: "target_path_mismatch" };
+  }
+
+  const userCodeRaw = target.searchParams.get("user_code")?.trim() ?? "";
+  const clientIdRaw = target.searchParams.get("client_id")?.trim() ?? "";
+  if (!userCodeRaw || !USER_CODE_RE.test(userCodeRaw)) {
+    return { error: "invalid_user_code" };
+  }
+  if (!clientIdRaw?.startsWith("app_")) {
+    return { error: "invalid_client_id" };
+  }
+  if (opts?.expectedPublicClientId && clientIdRaw !== opts.expectedPublicClientId) {
+    return { error: "client_id_mismatch" };
+  }
+  return { userCode: userCodeRaw, publicClientId: clientIdRaw };
+}

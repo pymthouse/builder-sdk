@@ -14,10 +14,12 @@ export function mapOAuthError(error: unknown): PmtHouseError {
 
   if (error instanceof ResponseBodyError) {
     const cause = error.cause as Record<string, unknown>;
+    const causeDescription =
+      typeof cause.error_description === "string" ? cause.error_description : undefined;
     const description =
       typeof error.error_description === "string"
         ? error.error_description
-        : error.message;
+        : causeDescription ?? error.message;
     const details: Record<string, unknown> = { ...cause };
     if (typeof cause.error_uri === "string") {
       details.error_uri = cause.error_uri;

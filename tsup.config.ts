@@ -9,7 +9,9 @@ export default defineConfig({
     tokens: "src/tokens.ts",
     device: "src/device.ts",
     "device-initiate": "src/device-initiate.ts",
+    "keycloak-device": "src/keycloak-device-handler.ts",
     verify: "src/verify.ts",
+    "signer/server": "src/signer/server.ts",
   },
   format: ["esm", "cjs"],
   dts: true,
@@ -18,4 +20,6 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "es2022",
+  // Bundle jose so consumers of verify/signer do not need a separate jose install.
+  noExternal: ["jose"],
 });

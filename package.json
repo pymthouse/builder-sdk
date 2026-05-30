@@ -42,10 +42,20 @@
       "import": "./dist/device-initiate.js",
       "require": "./dist/device-initiate.cjs"
     },
+    "./keycloak-device": {
+      "types": "./dist/keycloak-device.d.ts",
+      "import": "./dist/keycloak-device.js",
+      "require": "./dist/keycloak-device.cjs"
+    },
     "./verify": {
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js",
       "require": "./dist/verify.cjs"
+    },
+    "./signer/server": {
+      "types": "./dist/signer/server.d.ts",
+      "import": "./dist/signer/server.js",
+      "require": "./dist/signer/server.cjs"
     }
   },
   "files": [
@@ -70,6 +80,7 @@
     "prepack": "pnpm run build"
   },
   "dependencies": {
+    "jose": "^6.2.3",
     "oauth4webapi": "^3.8.5"
   },
   "devDependencies": {
