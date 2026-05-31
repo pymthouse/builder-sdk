@@ -2,44 +2,34 @@ import { loadAuthorizationServer } from "../discovery.js";
 import { encodeClientSecretBasic } from "../encoding.js";
 import { PmtHouseError } from "../errors.js";
 import { stripTrailingSlashes } from "../string-utils.js";
-import type { FetchLike } from "../types.js";
+import { readJsonObjectFromResponse } from "./fetch-json.js";
+import { readExpiresIn, readStringField } from "./json-fields.js";
 import type { CachedSignerToken, MintUserSignerTokenOptions, MintUserSignerTokenResponse } from "./types.js";
 
 export const SIGN_MINT_USER_TOKEN_SCOPE = "sign:mint_user_token";
 export const LIVEPEER_REMOTE_SIGNER_AUDIENCE = "livepeer-remote-signer";
 
 const DEFAULT_TTL_REFRESH_RATIO = 0.8;
-
-function readStringField(body: Record<string, unknown>, key: string): string {
-  const value = body[key];
-  if (typeof value !== "string" || !value.trim()) {
-    throw new PmtHouseError(`Token response missing ${key}`, {
-      status: 502,
-      code: "invalid_token_response",
-    });
-  }
-  return value.trim();
-}
-
-function readExpiresIn(body: Record<string, unknown>): number {
-  const expiresIn = body.expires_in;
-  if (typeof expiresIn !== "number" || !Number.isFinite(expiresIn) || expiresIn <= 0) {
-    throw new PmtHouseError("Token response missing expires_in", {
-      status: 502,
-      code: "invalid_token_response",
-    });
-  }
-  return Math.floor(expiresIn);
-}
+const TOKEN_RESPONSE_ERROR = "invalid_token_response";
 
 export function parseMintUserSignerTokenResponse(
   body: Record<string, unknown>,
   ttlRefreshRatio = DEFAULT_TTL_REFRESH_RATIO,
 ): CachedSignerToken {
-  const accessToken = readStringField(body, "access_token");
-  const expiresIn = readExpiresIn(body);
-  const balanceUsdMicros = readStringField(body, "balanceUsdMicros");
-  const lifetimeGrantedUsdMicros = readStringField(body, "lifetimeGrantedUsdMicros");
+  const accessToken = readStringField(body, "access_token", TOKEN_RESPONSE_ERROR, "Token response");
+  const expiresIn = readExpiresIn(body, TOKEN_RESPONSE_ERROR);
+  const balanceUsdMicros = readStringField(
+    body,
+    "balanceUsdMicros",
+    TOKEN_RESPONSE_ERROR,
+    "Token response",
+  );
+  const lifetimeGrantedUsdMicros = readStringField(
+    body,
+    "lifetimeGrantedUsdMicros",
+    TOKEN_RESPONSE_ERROR,
+    "Token response",
+  );
   const now = Date.now();
   const expiresAt = now + expiresIn * 1000;
   const refreshAt = now + Math.floor(expiresIn * 1000 * ttlRefreshRatio);
@@ -87,31 +77,12 @@ export async function mintUserSignerToken(
     cache: "no-store",
   });
 
-  const text = await response.text();
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-  } catch {
-    throw new PmtHouseError("Token endpoint returned invalid JSON", {
-      status: 502,
-      code: "invalid_token_response",
-      details: { status: response.status },
-    });
-  }
-
-  if (!response.ok) {
-    const description =
-      typeof parsed.error_description === "string"
-        ? parsed.error_description
-        : typeof parsed.error === "string"
-          ? parsed.error
-          : `Token mint failed (${response.status})`;
-    throw new PmtHouseError(description, {
-      status: response.status,
-      code: typeof parsed.error === "string" ? parsed.error : "token_mint_failed",
-      details: parsed,
-    });
-  }
+  const parsed = await readJsonObjectFromResponse(response, {
+    invalidJsonMessage: "Token endpoint returned invalid JSON",
+    invalidJsonCode: TOKEN_RESPONSE_ERROR,
+    failureLabel: "Token mint failed",
+    defaultErrorCode: "token_mint_failed",
+  });
 
   return parseMintUserSignerTokenResponse(parsed);
 }

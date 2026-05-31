@@ -2,6 +2,9 @@ import { loadAuthorizationServer } from "../discovery.js";
 import { encodeClientSecretBasic } from "../encoding.js";
 import { PmtHouseError } from "../errors.js";
 import { stripTrailingSlashes } from "../string-utils.js";
+import { readJsonObjectFromResponse } from "./fetch-json.js";
+import { readExpiresIn, readStringField } from "./json-fields.js";
+import { signerHandlerErrorResponse } from "./handler-errors.js";
 import {
   LIVEPEER_REMOTE_SIGNER_AUDIENCE,
   parseMintUserSignerTokenResponse,
@@ -19,28 +22,7 @@ import type {
 
 const TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
 const SUBJECT_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
-
-function readStringField(body: Record<string, unknown>, key: string): string {
-  const value = body[key];
-  if (typeof value !== "string" || !value.trim()) {
-    throw new PmtHouseError(`Response missing ${key}`, {
-      status: 502,
-      code: "invalid_exchange_response",
-    });
-  }
-  return value.trim();
-}
-
-function readExpiresIn(body: Record<string, unknown>): number {
-  const expiresIn = body.expires_in;
-  if (typeof expiresIn !== "number" || !Number.isFinite(expiresIn) || expiresIn <= 0) {
-    throw new PmtHouseError("Response missing expires_in", {
-      status: 502,
-      code: "invalid_exchange_response",
-    });
-  }
-  return Math.floor(expiresIn);
-}
+const EXCHANGE_RESPONSE_ERROR = "invalid_exchange_response";
 
 export function extractSignerAccessTokenFromExchangeBody(
   body: Record<string, unknown>,
@@ -115,7 +97,14 @@ export async function parseDeviceExchangeRequestBody(
     });
   }
   const record = body as Record<string, unknown>;
-  const deviceToken = readStringField(record, "deviceToken");
+  const deviceTokenRaw = record.deviceToken;
+  if (typeof deviceTokenRaw !== "string" || !deviceTokenRaw.trim()) {
+    throw new PmtHouseError("Request body must include deviceToken", {
+      status: 400,
+      code: "invalid_request",
+    });
+  }
+  const deviceToken = deviceTokenRaw.trim();
   const scope =
     typeof record.scope === "string" && record.scope.trim()
       ? record.scope.trim()
@@ -166,37 +155,18 @@ export async function mintSignerTokenFromDeviceToken(
     cache: "no-store",
   });
 
-  const text = await response.text();
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-  } catch {
-    throw new PmtHouseError("Token endpoint returned invalid JSON", {
-      status: 502,
-      code: "invalid_token_response",
-      details: { status: response.status },
-    });
-  }
-
-  if (!response.ok) {
-    const description =
-      typeof parsed.error_description === "string"
-        ? parsed.error_description
-        : typeof parsed.error === "string"
-          ? parsed.error
-          : `Signer JWT exchange failed (${response.status})`;
-    throw new PmtHouseError(description, {
-      status: response.status,
-      code: typeof parsed.error === "string" ? parsed.error : "token_exchange_failed",
-      details: parsed,
-    });
-  }
+  const parsed = await readJsonObjectFromResponse(response, {
+    invalidJsonMessage: "Token endpoint returned invalid JSON",
+    invalidJsonCode: "invalid_token_response",
+    failureLabel: "Signer JWT exchange failed",
+    defaultErrorCode: "token_exchange_failed",
+  });
 
   const cached = parseMintUserSignerTokenResponse(parsed);
   return {
     access_token: cached.jwt,
-    expires_in: readExpiresIn(parsed),
-    scope: readStringField(parsed, "scope"),
+    expires_in: readExpiresIn(parsed, EXCHANGE_RESPONSE_ERROR),
+    scope: readStringField(parsed, "scope", EXCHANGE_RESPONSE_ERROR),
     balanceUsdMicros: cached.balanceUsdMicros,
     lifetimeGrantedUsdMicros: cached.lifetimeGrantedUsdMicros,
   };
@@ -225,31 +195,12 @@ export async function exchangeDeviceTokenForSigner(
     cache: "no-store",
   });
 
-  const text = await response.text();
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-  } catch {
-    throw new PmtHouseError("Device exchange returned invalid JSON", {
-      status: 502,
-      code: "invalid_exchange_response",
-      details: { status: response.status },
-    });
-  }
-
-  if (!response.ok) {
-    const description =
-      typeof parsed.error_description === "string"
-        ? parsed.error_description
-        : typeof parsed.error === "string"
-          ? parsed.error
-          : `Device exchange failed (${response.status})`;
-    throw new PmtHouseError(description, {
-      status: response.status,
-      code: typeof parsed.error === "string" ? parsed.error : "device_exchange_failed",
-      details: parsed,
-    });
-  }
+  const parsed = await readJsonObjectFromResponse(response, {
+    invalidJsonMessage: "Device exchange returned invalid JSON",
+    invalidJsonCode: EXCHANGE_RESPONSE_ERROR,
+    failureLabel: "Device exchange failed",
+    defaultErrorCode: "device_exchange_failed",
+  });
 
   const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
   const signerUrlRaw = parsed.signerUrl ?? parsed.signer_url;
@@ -258,7 +209,7 @@ export async function exchangeDeviceTokenForSigner(
   return normalizeDeviceExchangeResponse(
     {
       access_token: accessToken,
-      expires_in: readExpiresIn(parsed),
+      expires_in: readExpiresIn(parsed, EXCHANGE_RESPONSE_ERROR),
       scope:
         typeof parsed.scope === "string" && parsed.scope.trim()
           ? parsed.scope.trim()
@@ -272,27 +223,6 @@ export async function exchangeDeviceTokenForSigner(
     },
     { signerUrl },
   );
-}
-
-function errorResponse(error: unknown): Response {
-  if (error instanceof PmtHouseError) {
-    return new Response(
-      JSON.stringify({
-        error: error.code,
-        error_description: error.message,
-        details: error.details,
-      }),
-      {
-        status: error.status,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-  }
-  const message = error instanceof Error ? error.message : "Internal error";
-  return new Response(JSON.stringify({ error: "internal_error", error_description: message }), {
-    status: 500,
-    headers: { "Content-Type": "application/json" },
-  });
 }
 
 type CreateDeviceExchangeHandlerInput =
@@ -362,7 +292,7 @@ export function createDeviceExchangeHandler(
         },
       });
     } catch (error) {
-      return errorResponse(error);
+      return signerHandlerErrorResponse(error);
     }
   };
 }

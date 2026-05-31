@@ -1,5 +1,4 @@
 import { PmtHouseError } from "../errors.js";
-import type { FetchLike } from "../types.js";
 import type { ForwardDirectSignerRequestOptions, SignerJwtIdentity } from "./types.js";
 
 function base64UrlPayloadToUtf8(payloadB64: string): string {

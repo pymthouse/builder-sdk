@@ -1,5 +1,6 @@
-import type { SignerDmzGate } from "./types.js";
+import { stripTrailingSlashes } from "../string-utils.js";
 import type { FetchLike } from "../types.js";
+import type { SignerDmzGate } from "./types.js";
 
 export type SignerUsageSnapshot = {
   requestId: string;
@@ -55,7 +56,7 @@ type DmzTokenCacheEntry = {
 const httpDmzTokenCache = new Map<string, DmzTokenCacheEntry>();
 
 export function normalizeSignerBaseUrl(base: string): string {
-  return base.replace(/\/+$/, "");
+  return stripTrailingSlashes(base);
 }
 
 export function resolveSignerBaseUrl(input: {
@@ -287,7 +288,6 @@ export async function probeSignerHttpReachability(
   const signerUrl = normalizeSignerBaseUrl(options.signerUrl);
   const timeoutMs = options.timeoutMs ?? 5000;
   const probeSubject = options.probeSubject ?? DEFAULT_PROBE_SUBJECT;
-  let ethAddress: string | undefined;
 
   const parseEthFromStatus = async (response: Response): Promise<string | undefined> => {
     if (!response.ok) {
