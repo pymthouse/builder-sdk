@@ -45,9 +45,22 @@ import type {
   PmtHouseClientOptions,
   TokenExchangeResponse,
   UpsertAppUserInput,
+  BillingProduct,
+  ListBillingProductsResult,
+  PlanSyncResult,
+  SignerRoutingResponse,
+  SignedTicketIngestInput,
+  SignedTicketIngestResult,
   UsageApiResponse,
   UsageQueryInput,
+  UserAllowanceGrantInput,
+  UserAllowancesResponse,
+  UserSubscriptionResponse,
 } from "./types.js";
+import {
+  ingestSignedTicket,
+  ingestSignedTicketsBatch,
+} from "./ingest.js";
 
 const TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
 const SUBJECT_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
@@ -364,6 +377,7 @@ export class PmtHouseClient {
     if (input.groupBy) url.searchParams.set("groupBy", input.groupBy);
     if (input.userId) url.searchParams.set("userId", input.userId);
     if (input.gatewayRequestId) url.searchParams.set("gatewayRequestId", input.gatewayRequestId);
+    if (input.includeRetail) url.searchParams.set("include", "retail");
 
     return this.requestJson<UsageApiResponse>(url.toString(), {
       method: "GET",
@@ -375,6 +389,105 @@ export class PmtHouseClient {
   /**
    * Session-scoped usage for one `externalUserId`: user rollup plus merged pipeline/model breakdown.
    */
+  async ingestSignedTicket(ticket: SignedTicketIngestInput): Promise<SignedTicketIngestResult> {
+    return ingestSignedTicket({
+      issuerUrl: this.issuerUrl,
+      publicClientId: this.publicClientId,
+      m2mClientId: this.m2mClientId,
+      m2mClientSecret: this.m2mClientSecret,
+      ticket,
+      fetch: this.fetchImpl,
+    });
+  }
+
+  async ingestSignedTickets(
+    tickets: SignedTicketIngestInput[],
+  ): Promise<{ results: Array<SignedTicketIngestResult & { requestId?: string; ok?: boolean }> }> {
+    return ingestSignedTicketsBatch({
+      issuerUrl: this.issuerUrl,
+      publicClientId: this.publicClientId,
+      m2mClientId: this.m2mClientId,
+      m2mClientSecret: this.m2mClientSecret,
+      tickets,
+      fetch: this.fetchImpl,
+    });
+  }
+
+  async getSignerRouting(): Promise<SignerRoutingResponse> {
+    return this.requestJson<SignerRoutingResponse>(
+      `${this.getAppsBaseUrl()}/signer/routing`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  async listBillingProducts(): Promise<ListBillingProductsResult> {
+    const url = `${this.getAppsBaseUrl()}/plans?apiVersion=2`;
+    const body = await this.requestJson<ListBillingProductsResult & { plans?: BillingProduct[] }>(
+      url,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+    return {
+      apiVersion: body.apiVersion ?? 2,
+      products: body.products ?? body.plans ?? [],
+    };
+  }
+
+  async syncBillingProduct(planId: string): Promise<PlanSyncResult> {
+    return this.requestJson<PlanSyncResult>(
+      `${this.getAppsBaseUrl()}/plans/${encodeURIComponent(planId)}/sync`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  async getUserAllowances(externalUserId: string): Promise<UserAllowancesResponse> {
+    return this.requestJson<UserAllowancesResponse>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/allowances`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  async grantUserAllowance(
+    externalUserId: string,
+    input: UserAllowanceGrantInput,
+  ): Promise<UserAllowancesResponse & { grantedUsdMicros?: string; featureKey?: string }> {
+    return this.requestJson(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/allowances`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify(input),
+        cache: "no-store",
+      },
+    );
+  }
+
+  async getUserSubscription(externalUserId: string): Promise<UserSubscriptionResponse> {
+    return this.requestJson<UserSubscriptionResponse>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/subscription`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
   async fetchUsageForExternalUser(input: {
     externalUserId: string;
     startDate: string;

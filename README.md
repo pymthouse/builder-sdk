@@ -130,6 +130,18 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 // summary.requestCount, summary.feeWei (wei string)
 ```
 
+## Billing: plans, retail usage, signed-ticket ingest
+
+**Plans (apiVersion=2):** `listBillingProducts({ apiVersion: "2" })` returns `BillingProduct[]` with capability pricing and sync status. `syncBillingProduct(planId)` POSTs to OpenMeter.
+
+**Retail estimates:** `getUsage({ includeRetail: true, groupBy: "pipeline_model" })` adds `endUserBillableUsdMicros` / fiat rows when the active plan has retail rates.
+
+**Signed-ticket ingest (platform metering):** after a signer proxy response, call `ingestSignedTicket` or use `forwardWithOptionalMetering` with `metering: { mode: "pymthouse_hosted" }` on `createSignerProxyServer` — usage is stripped from the client response and POSTed to `POST /api/v1/apps/{id}/usage/signed-tickets`.
+
+**Routing:** `getSignerRouting()` returns `signerApiUrl`, `remoteDmzUrl`, `meteringMode`, and pattern hints for hosted vs platform-ingest vs BYO OpenMeter.
+
+**Plan pricing helpers:** `markupPercentToRetailRateUsd`, `applyRetailRateToNetworkMicros` (exported from the main entry).
+
 ## Usage API: pipeline/model grouping
 
 When `getUsage({ groupBy: "pipeline_model", startDate, endDate, userId })` returns

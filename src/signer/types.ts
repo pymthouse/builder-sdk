@@ -1,6 +1,18 @@
 import type { FetchLike } from "../types.js";
 
-export type SignerMeteringMode = "pymthouse_hosted" | "byo_openmeter";
+/**
+ * - `pymthouse_hosted`: after sign, POST usage to Builder API (`/usage/signed-tickets`).
+ * - `platform_ingest` / `byo_openmeter`: platform calls ingest explicitly (no auto POST).
+ */
+export type SignerMeteringMode = "pymthouse_hosted" | "platform_ingest" | "byo_openmeter";
+
+export function resolvesToHostedMetering(mode: SignerMeteringMode | undefined): boolean {
+  return mode === "pymthouse_hosted";
+}
+
+export function resolvesToPlatformMetering(mode: SignerMeteringMode | undefined): boolean {
+  return mode === "platform_ingest" || mode === "byo_openmeter";
+}
 export type SignerDmzGate = "http" | "cli";
 
 export interface SignerMeteringConfig {
