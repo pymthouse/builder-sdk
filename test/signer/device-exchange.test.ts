@@ -13,6 +13,20 @@ import {
 import { PmtHouseError } from "../../src/errors.js";
 import type { FetchLike } from "../../src/types.js";
 
+function requestInputHref(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.href;
+  }
+  return input.url;
+}
+
+function urlEncodedBodyString(body: BodyInit | null | undefined): string {
+  return typeof body === "string" ? body : "";
+}
+
 describe("device exchange helpers", () => {
   it("extracts nested and top-level access tokens", () => {
     expect(
@@ -95,7 +109,7 @@ describe("createDeviceExchangeHandler", () => {
 describe("mintSignerTokenFromDeviceToken", () => {
   it("calls token endpoint with signer audience exchange grant", async () => {
     const fetchImpl = vi.fn<FetchLike>(async (input: RequestInfo | URL) => {
-      const url = String(input);
+      const url = requestInputHref(input);
       if (url.includes(".well-known/openid-configuration")) {
         return Response.json({
           issuer: "https://pymthouse.example/api/v1/oidc",
@@ -124,12 +138,12 @@ describe("mintSignerTokenFromDeviceToken", () => {
     expect(result.access_token).toBe("signer.jwt");
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     const tokenCall = fetchImpl.mock.calls.find((call) =>
-      String(call[0]).includes("/token"),
+      requestInputHref(call[0]).includes("/token"),
     ) as [RequestInfo | URL, RequestInit | undefined] | undefined;
     expect(tokenCall).toBeDefined();
     const init = tokenCall?.[1];
     expect(init).toBeDefined();
-    const params = new URLSearchParams(String(init?.body));
+    const params = new URLSearchParams(urlEncodedBodyString(init?.body));
     expect(params.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:token-exchange");
     expect(params.get("subject_token")).toBe("user.jwt");
     expect(params.get("audience")).toBe("livepeer-remote-signer");

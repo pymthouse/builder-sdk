@@ -1,6 +1,13 @@
 import { stripTrailingSlashes } from "../string-utils.js";
 import type { FetchLike } from "../types.js";
-import type { SignerDmzGate } from "./types.js";
+import type {
+  ForwardToSignerOptions,
+  ForwardToSignerResult,
+  ProbeSignerHttpReachabilityOptions,
+  SignerDmzGate,
+} from "./types.js";
+
+export type { ForwardToSignerOptions, ForwardToSignerResult, ProbeSignerHttpReachabilityOptions };
 
 export type SignerUsageSnapshot = {
   requestId: string;
@@ -15,35 +22,6 @@ export type SignerUsageSnapshot = {
   modelId?: string;
 };
 
-export interface ForwardToSignerOptions {
-  baseUrl: string;
-  path: string;
-  method: string;
-  body?: unknown;
-  subject: string;
-  getDmzToken: (subject: string, gate: SignerDmzGate) => Promise<string>;
-  forwardJwt?: boolean;
-  /** Merged after Authorization; used for go-livepeer trusted_headers identity. */
-  extraHeaders?: Record<string, string>;
-  timeoutMs?: number;
-  fetch?: FetchLike;
-}
-
-export interface ForwardToSignerResult {
-  response: Response;
-  requestUrl: string;
-  authorizationHeader?: string;
-}
-
-export interface ProbeSignerHttpReachabilityOptions {
-  signerUrl: string;
-  getDmzToken: (subject: string, gate: SignerDmzGate) => Promise<string>;
-  probeSubject?: string;
-  timeoutMs?: number;
-  forwardJwt?: boolean;
-  fetch?: FetchLike;
-}
-
 const HTTP_DMZ_TOKEN_MAX_ENTRIES = 100;
 const HTTP_DMZ_TOKEN_TTL_MS = 3.5 * 60 * 1000;
 const DEFAULT_PROBE_SUBJECT = "signer-reachability-probe";
@@ -57,6 +35,26 @@ const httpDmzTokenCache = new Map<string, DmzTokenCacheEntry>();
 
 export function normalizeSignerBaseUrl(base: string): string {
   return stripTrailingSlashes(base);
+}
+
+function joinSignerUrl(baseUrl: string, path: string): string {
+  if (path.startsWith("/")) {
+    return `${baseUrl}${path}`;
+  }
+  return `${baseUrl}/${path}`;
+}
+
+function aliasBodyString(raw: unknown): string | null {
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  if (typeof raw === "string") {
+    return raw.length > 0 ? raw : null;
+  }
+  if (typeof raw === "number" || typeof raw === "boolean" || typeof raw === "bigint") {
+    return String(raw);
+  }
+  return null;
 }
 
 export function resolveSignerBaseUrl(input: {
@@ -131,9 +129,8 @@ export function pickConflictingStringAliases(
   | { ok: false; message: string } {
   const values = keys
     .map((key) => {
-      const raw = body[key];
-      const defined = raw !== undefined && raw !== null && `${raw}`.length > 0;
-      return defined ? { key, value: String(raw) } : null;
+      const value = aliasBodyString(body[key]);
+      return value !== null ? { key, value } : null;
     })
     .filter((entry): entry is { key: string; value: string } => entry !== null);
   const first = values[0];
@@ -242,13 +239,14 @@ export async function forwardToSigner(
 ): Promise<ForwardToSignerResult> {
   const fetchImpl = options.fetch ?? fetch;
   const baseUrl = normalizeSignerBaseUrl(options.baseUrl);
-  const url = `${baseUrl}${options.path.startsWith("/") ? options.path : `/${options.path}`}`;
+  const url = joinSignerUrl(baseUrl, options.path);
   const timeoutMs = options.timeoutMs ?? 30_000;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-  if (options.forwardJwt !== false) {
+  const attachJwt = options.forwardJwt ?? true;
+  if (attachJwt) {
     const token = await getCachedDmzBearerToken(
       options.subject,
       "http",
@@ -268,7 +266,7 @@ export async function forwardToSigner(
     const response = await fetchImpl(url, {
       method: options.method,
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
     });
     return {
@@ -281,118 +279,127 @@ export async function forwardToSigner(
   }
 }
 
-export async function probeSignerHttpReachability(
-  options: ProbeSignerHttpReachabilityOptions,
-): Promise<{ reachable: boolean; ethAddress?: string }> {
-  const fetchImpl = options.fetch ?? fetch;
-  const signerUrl = normalizeSignerBaseUrl(options.signerUrl);
-  const timeoutMs = options.timeoutMs ?? 5000;
-  const probeSubject = options.probeSubject ?? DEFAULT_PROBE_SUBJECT;
+type SignerProbeContext = {
+  fetchImpl: FetchLike;
+  signerUrl: string;
+  timeoutMs: number;
+  probeSubject: string;
+  useJwt: boolean;
+  getDmzToken: ProbeSignerHttpReachabilityOptions["getDmzToken"];
+};
 
-  const parseEthFromStatus = async (response: Response): Promise<string | undefined> => {
-    if (!response.ok) {
-      return undefined;
-    }
-    const data = (await readSignerUpstreamBody(response)) as Record<string, unknown>;
-    return (
-      (typeof data.Address === "string" && data.Address) ||
-      (typeof data.address === "string" && data.address) ||
-      undefined
-    );
+function createSignerProbeContext(options: ProbeSignerHttpReachabilityOptions): SignerProbeContext {
+  return {
+    fetchImpl: options.fetch ?? fetch,
+    signerUrl: normalizeSignerBaseUrl(options.signerUrl),
+    timeoutMs: options.timeoutMs ?? 5000,
+    probeSubject: options.probeSubject ?? DEFAULT_PROBE_SUBJECT,
+    useJwt: options.forwardJwt ?? true,
+    getDmzToken: options.getDmzToken,
   };
+}
 
-  const fetchStatus = async (headers: Record<string, string>) => {
-    const response = await fetchImpl(`${signerUrl}/status`, {
-      headers,
-      signal: AbortSignal.timeout(timeoutMs),
+function reachableResult(ethAddress?: string): { reachable: true; ethAddress?: string } {
+  return { reachable: true, ethAddress };
+}
+
+async function fetchSignerStatus(
+  ctx: SignerProbeContext,
+  headers: Record<string, string>,
+): Promise<{ ok: boolean; ethAddress?: string }> {
+  const response = await ctx.fetchImpl(`${ctx.signerUrl}/status`, {
+    headers,
+    signal: AbortSignal.timeout(ctx.timeoutMs),
+  });
+  if (!response.ok) {
+    return { ok: false };
+  }
+  const data = (await readSignerUpstreamBody(response)) as Record<string, unknown>;
+  const ethAddress =
+    (typeof data.Address === "string" && data.Address) ||
+    (typeof data.address === "string" && data.address) ||
+    undefined;
+  return { ok: true, ethAddress };
+}
+
+async function tryJwtStatus(
+  ctx: SignerProbeContext,
+): Promise<{ reachable: true; ethAddress?: string } | null> {
+  if (!ctx.useJwt) {
+    return null;
+  }
+  try {
+    const token = await ctx.getDmzToken(ctx.probeSubject, "http");
+    const { ok, ethAddress } = await fetchSignerStatus(ctx, {
+      Authorization: `Bearer ${token}`,
     });
-    const addr = await parseEthFromStatus(response);
-    return { ok: response.ok, addr };
-  };
+    return ok ? reachableResult(ethAddress) : null;
+  } catch {
+    return null;
+  }
+}
 
-  const fetchSigningProbe = async (): Promise<boolean> => {
-    const token = await options.getDmzToken(probeSubject, "http");
-    const response = await fetchImpl(`${signerUrl}/sign-orchestrator-info`, {
+async function tryPlainStatus(
+  ctx: SignerProbeContext,
+): Promise<{ reachable: true; ethAddress?: string } | null> {
+  try {
+    const { ok, ethAddress } = await fetchSignerStatus(ctx, {});
+    return ok ? reachableResult(ethAddress) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function trySigningProbe(ctx: SignerProbeContext): Promise<boolean> {
+  try {
+    const token = await ctx.getDmzToken(ctx.probeSubject, "http");
+    const response = await ctx.fetchImpl(`${ctx.signerUrl}/sign-orchestrator-info`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: "{}",
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.timeout(ctx.timeoutMs),
     });
     return response.ok;
-  };
+  } catch {
+    return false;
+  }
+}
+
+async function runSignerReachabilityProbes(
+  ctx: SignerProbeContext,
+): Promise<{ reachable: boolean; ethAddress?: string }> {
+  const jwtResult = await tryJwtStatus(ctx);
+  if (jwtResult) {
+    return jwtResult;
+  }
+  const plainResult = await tryPlainStatus(ctx);
+  if (plainResult) {
+    return plainResult;
+  }
+  if (await trySigningProbe(ctx)) {
+    return reachableResult(undefined);
+  }
+  return { reachable: false, ethAddress: undefined };
+}
+
+export async function probeSignerHttpReachability(
+  options: ProbeSignerHttpReachabilityOptions,
+): Promise<{ reachable: boolean; ethAddress?: string }> {
+  const ctx = createSignerProbeContext(options);
 
   try {
-    const health = await fetchImpl(`${signerUrl}/healthz`, {
-      signal: AbortSignal.timeout(timeoutMs),
+    const health = await ctx.fetchImpl(`${ctx.signerUrl}/healthz`, {
+      signal: AbortSignal.timeout(ctx.timeoutMs),
     });
     if (health.ok) {
-      if (options.forwardJwt !== false) {
-        try {
-          const token = await options.getDmzToken(probeSubject, "http");
-          const { ok, addr } = await fetchStatus({
-            Authorization: `Bearer ${token}`,
-          });
-          if (ok) {
-            return { reachable: true, ethAddress: addr };
-          }
-        } catch {
-          /* continue */
-        }
-      }
-      try {
-        const { ok, addr } = await fetchStatus({});
-        if (ok) {
-          return { reachable: true, ethAddress: addr };
-        }
-      } catch {
-        /* continue */
-      }
-      try {
-        if (await fetchSigningProbe()) {
-          return { reachable: true, ethAddress: undefined };
-        }
-      } catch {
-        /* continue */
-      }
-      return { reachable: false, ethAddress: undefined };
+      return runSignerReachabilityProbes(ctx);
     }
   } catch {
-    /* try /status without healthz */
+    /* fall through to /status probes */
   }
 
-  if (options.forwardJwt !== false) {
-    try {
-      const token = await options.getDmzToken(probeSubject, "http");
-      const { ok, addr } = await fetchStatus({
-        Authorization: `Bearer ${token}`,
-      });
-      if (ok) {
-        return { reachable: true, ethAddress: addr };
-      }
-    } catch {
-      /* continue */
-    }
-  }
-
-  try {
-    const { ok, addr } = await fetchStatus({});
-    if (ok) {
-      return { reachable: true, ethAddress: addr };
-    }
-  } catch {
-    /* unreachable */
-  }
-
-  try {
-    if (await fetchSigningProbe()) {
-      return { reachable: true, ethAddress: undefined };
-    }
-  } catch {
-    /* unreachable */
-  }
-
-  return { reachable: false, ethAddress: undefined };
+  return runSignerReachabilityProbes(ctx);
 }

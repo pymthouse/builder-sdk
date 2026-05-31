@@ -235,17 +235,16 @@ function resolveMint(
   if ("mint" in config && typeof config.mint === "function") {
     return config.mint;
   }
-  const remote = config as DeviceExchangeHandlerConfigRemote;
   return (deviceToken, context) =>
     mintSignerTokenFromDeviceToken({
-      issuerUrl: remote.issuerUrl,
-      m2mClientId: remote.m2mClientId,
-      m2mClientSecret: remote.m2mClientSecret,
+      issuerUrl: config.issuerUrl,
+      m2mClientId: config.m2mClientId,
+      m2mClientSecret: config.m2mClientSecret,
       deviceToken,
       scope: context.scope,
-      audience: remote.audience,
-      fetch: remote.fetch,
-      allowInsecureHttp: remote.allowInsecureHttp,
+      audience: config.audience,
+      fetch: config.fetch,
+      allowInsecureHttp: config.allowInsecureHttp,
     });
 }
 

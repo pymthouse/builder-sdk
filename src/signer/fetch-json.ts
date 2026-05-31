@@ -1,5 +1,19 @@
 import { PmtHouseError } from "../errors.js";
 
+function oauthFailureDescription(
+  parsed: Record<string, unknown>,
+  failureLabel: string,
+  status: number,
+): string {
+  if (typeof parsed.error_description === "string") {
+    return parsed.error_description;
+  }
+  if (typeof parsed.error === "string") {
+    return parsed.error;
+  }
+  return `${failureLabel} (${status})`;
+}
+
 export type ReadJsonObjectFromResponseOptions = {
   invalidJsonMessage: string;
   invalidJsonCode: string;
@@ -24,12 +38,7 @@ export async function readJsonObjectFromResponse(
   }
 
   if (!response.ok) {
-    const description =
-      typeof parsed.error_description === "string"
-        ? parsed.error_description
-        : typeof parsed.error === "string"
-          ? parsed.error
-          : `${options.failureLabel} (${response.status})`;
+    const description = oauthFailureDescription(parsed, options.failureLabel, response.status);
     throw new PmtHouseError(description, {
       status: response.status,
       code: typeof parsed.error === "string" ? parsed.error : options.defaultErrorCode,

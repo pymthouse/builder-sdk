@@ -28,7 +28,7 @@ export interface DirectSignerProxyConfig {
   /** Remote path used when the proxied suffix is empty. Defaults to `/generate-live-payment`. */
   defaultRemotePath?: string;
   metering?: SignerMeteringConfig;
-  authenticate: (request: Request) => Promise<unknown | null>;
+  authenticate: (request: Request) => Promise<unknown>;
   resolveExternalUserId: (session: unknown) => Promise<string>;
   beforeSign?: (context: DirectSignerBeforeSignContext) => Promise<DirectSignerBeforeSignResult | void>;
 }
