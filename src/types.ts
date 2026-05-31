@@ -93,6 +93,8 @@ export interface UsageQueryInput {
   groupBy?: "none" | "user" | "pipeline_model";
   userId?: string;
   gatewayRequestId?: string;
+  /** When true, sends `include=retail` for estimated end-user billable amounts. */
+  includeRetail?: boolean;
 }
 
 export interface UsageTotals {
@@ -127,12 +129,14 @@ export interface UsageByPipelineModelRow {
   networkFeeWei?: string;
   networkFeeEth?: string;
   networkFeeUsdMicros: string;
-  ownerChargeUsdMicros: string;
-  endUserBillableUsdMicros: string;
+  ownerChargeUsdMicros?: string;
+  endUserBillableUsdMicros?: string;
+  retailRateUsd?: string;
 }
 
 export interface UsageApiResponse {
   clientId: string;
+  source?: "openmeter" | "postgres";
   period: {
     start: string | null;
     end: string | null;
@@ -140,6 +144,135 @@ export interface UsageApiResponse {
   totals: UsageTotals;
   byUser?: UsageByUserRow[];
   byPipelineModel?: UsageByPipelineModelRow[];
+}
+
+export type BillingSyncStatus = "not_applicable" | "pending" | "synced" | "error";
+
+export interface BillingSyncState {
+  status: BillingSyncStatus;
+  syncedAt: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  openmeterPlanId?: string | null;
+  openmeterPlanVersion?: number | null;
+}
+
+export interface CapabilityPriceRule {
+  pipeline: string;
+  modelId: string;
+  retailRateUsd: string | null;
+  markupPercent: string | null;
+  effectiveRetailRateUsd: string;
+  featureKey: string;
+}
+
+export interface AllowancePolicy {
+  includedUsdMicros: string | null;
+  billingCycle: string;
+}
+
+export interface BillingProduct {
+  id: string;
+  clientId: string;
+  name: string;
+  type: string;
+  status: string;
+  priceAmount: string;
+  priceCurrency: string;
+  isNetworkDefault: boolean;
+  allowance: AllowancePolicy;
+  defaultRetailRateUsd: string | null;
+  capabilities: CapabilityPriceRule[];
+  sync: BillingSyncState;
+}
+
+export interface SignedTicketIngestInput {
+  requestId: string;
+  externalUserId: string;
+  networkFeeUsdMicros: string;
+  feeWei?: string;
+  pixels?: string;
+  pipeline?: string;
+  modelId?: string;
+  gatewayRequestId?: string;
+  ethUsdPrice?: string;
+  ethUsdRoundId?: string;
+  ethUsdObservedAt?: string;
+}
+
+export interface SignedTicketIngestResult {
+  ingested: boolean;
+  duplicate: boolean;
+  source: "openmeter" | "disabled";
+  ledgerWritten?: boolean;
+}
+
+export interface SignerRoutingConfig {
+  signerApiUrl: string;
+  remoteDmzUrl: string | null;
+  jwksUri: string;
+  identityMode: string;
+  meteringMode: "hosted_ingest" | "platform_ingest";
+}
+
+export interface SignerRoutingResponse {
+  clientId: string;
+  routing: SignerRoutingConfig;
+  patterns: {
+    hostedFacade: { description: string; signerApiUrl: string };
+    platformDirectDmz: {
+      description: string;
+      remoteDmzUrl: string | null;
+      ingestUrl: string;
+    };
+  };
+}
+
+export type GrantSource = "trial" | "manual" | "promo" | "plan_adjustment";
+
+export interface UserAllowanceGrantInput {
+  amountUsdMicros: string;
+  source?: GrantSource;
+  featureKey?: string;
+}
+
+export interface UserAllowancesResponse {
+  externalUserId: string;
+  allowances: {
+    balanceUsdMicros: string;
+    consumedUsdMicros?: string;
+    lifetimeGrantedUsdMicros?: string;
+    hasAccess?: boolean;
+  };
+}
+
+export interface UserSubscriptionResponse {
+  externalUserId: string;
+  subscription: {
+    id: string;
+    status: string;
+    planId: string;
+    planName: string | null;
+    planType: string | null;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    openmeterSubscriptionId: string | null;
+    stripeCheckoutSessionId: string | null;
+    createdAt: string;
+    cancelledAt: string | null;
+  } | null;
+}
+
+export interface PlanSyncResult {
+  planId: string;
+  ok: boolean;
+  sync: BillingSyncState;
+  openmeterPlanId: string | null;
+}
+
+export interface ListBillingProductsResult {
+  apiVersion: number;
+  products: BillingProduct[];
 }
 
 /** Aggregated request count and fee for one provider `externalUserId` across duplicate `byUser` buckets. */

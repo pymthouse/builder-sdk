@@ -1,4 +1,19 @@
 export {
+  applyRetailRateToNetworkMicros,
+  defaultRetailRateUsd,
+  markupPercentToRetailRateUsd,
+  NETWORK_USD_PER_MICRO,
+  parseMarkupPercentInput,
+  parseRetailRateUsd,
+  retailRateUsdPerMillion,
+  retailRateUsdToMarkupPercent,
+} from "./plan-pricing.js";
+export {
+  ingestSignedTicket,
+  ingestSignedTicketsBatch,
+  signerSnapshotToIngestPayload,
+} from "./ingest.js";
+export {
   aggregateUsageByExternalUserId,
   buildMeScopeUsagePayload,
   DEFAULT_MAX_END_USER_IDS,
@@ -44,15 +59,22 @@ export {
 export type { SignerSessionToken } from "./tokens.js";
 export type { LoadAuthorizationServerOptions } from "./discovery.js";
 export type {
+  AllowancePolicy,
   AppManifestCapability,
   AppManifestResponse,
   AppUserRecord,
   ApproveDeviceLoginInput,
+  BillingProduct,
+  BillingSyncState,
+  BillingSyncStatus,
+  CapabilityPriceRule,
   ClientCredentialsTokenResponse,
   DeviceApprovalInput,
   FetchLike,
   GetAppManifestResult,
   GetDiscoveryOptions,
+  GrantSource,
+  ListBillingProductsResult,
   MeScopeUsagePayload,
   MintSignerSessionForExternalUserInput,
   MintUserAccessTokenInput,
@@ -60,7 +82,12 @@ export type {
   MintUserSignerSessionTokenInput,
   OidcDiscoveryDocument,
   ParsedDeviceApprovalRedirect,
+  PlanSyncResult,
   PmtHouseClientOptions,
+  SignedTicketIngestInput,
+  SignedTicketIngestResult,
+  SignerRoutingConfig,
+  SignerRoutingResponse,
   TokenExchangeResponse,
   UpsertAppUserInput,
   UsageApiResponse,
@@ -70,4 +97,7 @@ export type {
   UsageForExternalUser,
   UsageQueryInput,
   UsageTotals,
+  UserAllowanceGrantInput,
+  UserAllowancesResponse,
+  UserSubscriptionResponse,
 } from "./types.js";
