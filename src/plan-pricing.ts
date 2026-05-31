@@ -3,6 +3,23 @@ export const NETWORK_USD_PER_MICRO = 0.000001;
 
 const RETAIL_RATE_DECIMALS = 9;
 
+/** Strip trailing fractional zeros without regex (avoids ReDoS on user-facing inputs). */
+function trimFixedDecimalZeros(fixed: string): string {
+  const dotIndex = fixed.indexOf(".");
+  if (dotIndex === -1) {
+    return fixed;
+  }
+  let end = fixed.length;
+  while (end > dotIndex + 1 && fixed[end - 1] === "0") {
+    end -= 1;
+  }
+  if (end === dotIndex + 1) {
+    end = dotIndex;
+  }
+  const trimmed = fixed.slice(0, end);
+  return trimmed.length > 0 ? trimmed : "0";
+}
+
 export function defaultRetailRateUsd(): string {
   return formatRetailRateUsd(NETWORK_USD_PER_MICRO);
 }
@@ -11,7 +28,7 @@ export function formatRetailRateUsd(value: number): string {
   if (!Number.isFinite(value) || value < 0) {
     return defaultRetailRateUsd();
   }
-  return value.toFixed(RETAIL_RATE_DECIMALS).replace(/\.?0+$/, "") || "0";
+  return trimFixedDecimalZeros(value.toFixed(RETAIL_RATE_DECIMALS));
 }
 
 export function parseRetailRateUsd(raw: string | null | undefined): string | null {

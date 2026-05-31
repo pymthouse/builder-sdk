@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PmtHouseClient } from "../src/client.js";
 import type { FetchLike } from "../src/types.js";
+import { resolveFetchInputUrl } from "./fetch-url.js";
 
 function makeClient(fetchImpl: FetchLike) {
   return new PmtHouseClient({
@@ -17,8 +18,8 @@ function makeClient(fetchImpl: FetchLike) {
 describe("PmtHouseClient billing extensions", () => {
   it("getUsage passes include=retail", async () => {
     const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-      captured.url = typeof input === "string" ? input : (input as URL | Request).toString();
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      captured.url = resolveFetchInputUrl(input);
       return Response.json({
         clientId: "app_x",
         source: "openmeter",

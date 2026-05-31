@@ -5,6 +5,7 @@ import {
   ingestSignedTicket,
   signerSnapshotToIngestPayload,
 } from "../src/ingest.js";
+import { resolveFetchInputUrl } from "./fetch-url.js";
 
 describe("signerSnapshotToIngestPayload", () => {
   it("maps signer usage block to ingest body", () => {
@@ -41,7 +42,7 @@ describe("ingestSignedTicket", () => {
     let calledMethod = "";
     const fetchMock = vi.fn(
       async (input: string | URL | Request, init?: RequestInit) => {
-        calledUrl = typeof input === "string" ? input : input.toString();
+        calledUrl = resolveFetchInputUrl(input);
         calledMethod = init?.method ?? "";
         return Response.json({
           ingested: true,

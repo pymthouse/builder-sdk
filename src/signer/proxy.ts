@@ -130,7 +130,7 @@ export function pickConflictingStringAliases(
   const values = keys
     .map((key) => {
       const value = aliasBodyString(body[key]);
-      return value !== null ? { key, value } : null;
+      return value === null ? null : { key, value };
     })
     .filter((entry): entry is { key: string; value: string } => entry !== null);
   const first = values[0];
@@ -163,7 +163,7 @@ export function pickConflictingNumberAliases(
   const values = keys
     .map((key) => {
       const value = parseNum(body[key]);
-      return value !== undefined ? { key, value } : null;
+      return value === undefined ? null : { key, value };
     })
     .filter((entry): entry is { key: string; value: number } => entry !== null);
   const first = values[0];
@@ -380,9 +380,9 @@ async function runSignerReachabilityProbes(
     return plainResult;
   }
   if (await trySigningProbe(ctx)) {
-    return reachableResult(undefined);
+    return reachableResult();
   }
-  return { reachable: false, ethAddress: undefined };
+  return { reachable: false };
 }
 
 export async function probeSignerHttpReachability(
