@@ -68,6 +68,48 @@ const signerSession = await client.mintUserSignerSessionToken({
 For advanced flows that already have a user JWT, call
 `exchangeForSignerSession({ userJwt })` directly.
 
+### Dashboard API keys (long-lived `pmth_*`)
+
+Create a key in the Dashboard **API keys** page, then exchange it for a signer
+session without repeating device login:
+
+```ts
+const session = await client.exchangeApiKeyForSignerSession({
+  apiKey: process.env.PMTH_API_KEY!,
+  facadeUrl: process.env.DASHBOARD_ORIGIN!, // e.g. https://dashboard.example.com
+  scope: "sign:job",
+});
+// session.access_token — opaque signer bearer for discovery / gateway
+```
+
+See `examples/stream-with-api-key.mjs` for a minimal Node script.
+
+## Browser gateway (optional module)
+
+Live Video-to-Video streaming from the browser uses a **same-origin HTTP segment relay**
+implemented in optional subpaths (not exported from the main entry):
+
+| Subpath | Use |
+|---------|-----|
+| `@pymthouse/builder-sdk/gateway` | Shared types |
+| `@pymthouse/builder-sdk/gateway/client` | `BrowserGatewayClient` for dashboard / browser apps |
+| `@pymthouse/builder-sdk/gateway/server` | Route Handler factories for Next.js |
+
+Install peer dependencies when using the server module:
+
+```bash
+pnpm add @grpc/grpc-js @grpc/proto-loader
+```
+
+Auth flow (same signer bearer as Python `livepeer-python-gateway`):
+
+1. `exchangeApiKeyForSignerSession({ apiKey, facadeUrl: dashboardOrigin })` or `POST /api/pymthouse/keys/exchange`
+2. `Authorization: Bearer <signer_token>` on `POST /api/gateway/sessions`
+
+Enable relay on the dashboard with `GATEWAY_ENABLED=1` and `NEXT_PUBLIC_GATEWAY_ENABLED=1`.
+
+See `examples/gateway-session-smoke.mjs` for a headless session start test.
+
 Integrators can use the higher-level workflow helpers:
 
 ```ts

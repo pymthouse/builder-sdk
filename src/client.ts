@@ -224,6 +224,60 @@ export class PmtHouseClient {
     });
   }
 
+  /**
+   * Exchange a long-lived dashboard API key (`pmth_*`) for a short-lived user JWT.
+   */
+  async exchangeApiKeyForUserAccessToken(input: {
+    apiKey: string;
+    scope?: string;
+  }): Promise<MintUserAccessTokenResponse> {
+    const url = `${this.getAppsBaseUrl()}/auth/api-key/token`;
+    return this.requestJson<MintUserAccessTokenResponse>(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey.trim()}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(input.scope ? { scope: input.scope } : {}),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Exchange a dashboard API key for a signer session via a trusted facade (recommended)
+   * or directly when M2M credentials are available on this client.
+   */
+  async exchangeApiKeyForSignerSession(input: {
+    apiKey: string;
+    scope?: string;
+    facadeUrl?: string;
+  }): Promise<TokenExchangeResponse> {
+    if (input.facadeUrl?.trim()) {
+      const { exchangeApiKeyForSigner } = await import("./signer/api-key-exchange.js");
+      const exchanged = await exchangeApiKeyForSigner({
+        facadeUrl: input.facadeUrl.trim(),
+        apiKey: input.apiKey,
+        scope: input.scope,
+        clientId: this.publicClientId,
+        fetch: this.fetchImpl,
+      });
+      return {
+        access_token: exchanged.access_token,
+        token_type: exchanged.token_type,
+        expires_in: exchanged.expires_in,
+        scope: exchanged.scope,
+        issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      };
+    }
+
+    const userToken = await this.exchangeApiKeyForUserAccessToken({
+      apiKey: input.apiKey,
+      scope: input.scope,
+    });
+    return this.exchangeForSignerSession({ userJwt: userToken.access_token });
+  }
+
   async completeDeviceApproval(
     input: DeviceApprovalInput,
   ): Promise<TokenExchangeResponse> {

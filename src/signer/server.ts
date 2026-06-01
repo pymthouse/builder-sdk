@@ -144,6 +144,13 @@ export {
   parseDeviceExchangeRequestBody,
 } from "./device-exchange.js";
 export {
+  createApiKeyExchangeHandler,
+  exchangeApiKeyForSigner,
+  mintSignerSessionFromApiKey,
+  mintUserAccessTokenFromApiKey,
+  parseApiKeyExchangeRequestBody,
+} from "./api-key-exchange.js";
+export {
   forwardToSigner,
   getCachedDmzBearerToken,
   normalizeSignerBaseUrl,
@@ -167,12 +174,16 @@ export type {
   DirectSignerBeforeSignContext,
   DirectSignerBeforeSignResult,
   DirectSignerProxyConfig,
+  ApiKeyExchangeHandlerConfig,
+  ApiKeyExchangeMintResult,
+  ApiKeyExchangeRequestBody,
   DeviceExchangeHandlerConfig,
   DeviceExchangeHandlerConfigRemote,
   DeviceExchangeMintContext,
   DeviceExchangeMintResult,
   DeviceExchangeRequestBody,
   DeviceExchangeResponse,
+  ExchangeApiKeyForSignerOptions,
   ExchangeDeviceTokenForSignerOptions,
   ForwardDirectSignerRequestOptions,
   ForwardToSignerOptions,

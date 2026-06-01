@@ -212,3 +212,30 @@ export interface DeviceExchangeHandlerConfigRemote extends Omit<
   getSignerUrl?: () => string | Promise<string>;
   signerUrl?: string;
 }
+
+export interface ApiKeyExchangeRequestBody {
+  apiKey: string;
+  scope?: string;
+  clientId?: string;
+}
+
+export type ApiKeyExchangeMintResult = DeviceExchangeMintResult;
+
+export interface ApiKeyExchangeHandlerConfig {
+  issuerUrl: string;
+  publicClientId: string;
+  m2mClientId: string;
+  m2mClientSecret: string;
+  signerUrl?: string;
+  audience?: string;
+  fetch?: FetchLike;
+  allowInsecureHttp?: boolean;
+}
+
+export interface ExchangeApiKeyForSignerOptions {
+  facadeUrl: string;
+  apiKey: string;
+  scope?: string;
+  clientId?: string;
+  fetch?: FetchLike;
+}
