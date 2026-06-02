@@ -35,8 +35,11 @@ function pickCertAuthority(cert: tls.PeerCertificate): string {
     }
   }
   const cn = cert.subject?.CN;
-  if (cn) {
+  if (typeof cn === "string") {
     return cn;
+  }
+  if (Array.isArray(cn) && cn.length > 0) {
+    return cn[0] ?? "";
   }
   return "";
 }

@@ -80,10 +80,14 @@ function parseDiscoveryList(data: unknown): string[] {
     }
     const record = item as Record<string, unknown>;
     const address =
-      (typeof record.address === "string" && record.address) ||
-      (typeof record.url === "string" && record.url);
-    if (address?.trim()) {
-      urls.push(address.trim());
+      typeof record.address === "string"
+        ? record.address
+        : typeof record.url === "string"
+          ? record.url
+          : undefined;
+    const trimmed = address?.trim();
+    if (trimmed) {
+      urls.push(trimmed);
     }
   }
   return urls;
