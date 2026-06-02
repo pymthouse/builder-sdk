@@ -40,6 +40,96 @@ function startPaymentLoop(
   }, config.paymentIntervalMs);
 }
 
+async function parseStartGatewaySessionRequest(
+  request: Request,
+  config: GatewayServerConfig,
+): Promise<StartGatewaySessionRequest | Response> {
+  try {
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return Response.json({ error: "invalid_request" }, { status: 400 });
+    }
+    const record = parsed as Record<string, unknown>;
+    const modelId = typeof record.modelId === "string" ? record.modelId.trim() : "";
+    if (!modelId) {
+      return Response.json({ error: "modelId is required" }, { status: 400 });
+    }
+    return {
+      modelId,
+      orchestratorUrl:
+        typeof record.orchestratorUrl === "string" ? record.orchestratorUrl : undefined,
+      discoveryUrl:
+        typeof record.discoveryUrl === "string" ? record.discoveryUrl : config.discoveryUrl,
+      params:
+        record.params && typeof record.params === "object" && !Array.isArray(record.params)
+          ? (record.params as Record<string, unknown>)
+          : undefined,
+      streamId: typeof record.streamId === "string" ? record.streamId : undefined,
+      requestId: typeof record.requestId === "string" ? record.requestId : undefined,
+    };
+  } catch {
+    return Response.json({ error: "invalid_json" }, { status: 400 });
+  }
+}
+
+async function startGatewaySessionRecord(
+  config: GatewayServerConfig,
+  token: string,
+  body: StartGatewaySessionRequest,
+): Promise<Response> {
+  try {
+    const job = await startLv2vSession({
+      request: body,
+      signerUrl: config.signerUrl,
+      signerHeaders: signerHeadersFromBearer(token),
+      discoveryUrl: config.discoveryUrl,
+      discoveryTimeoutMs: config.discoveryTimeoutMs,
+      useTofu: config.useTofu,
+    });
+
+    const sessionId = createSessionId();
+    const ownerTokenHash = hashBearerToken(token);
+    const sessionRecord = {
+      id: sessionId,
+      ownerTokenHash,
+      manifestId: job.manifestId,
+      publishUrl: job.publishUrl,
+      subscribeUrl: job.subscribeUrl,
+      controlUrl: job.controlUrl,
+      mimeType: job.mimeType,
+      paymentSession: job.paymentSession,
+      orchestratorUrl: job.orchestratorUrl,
+      publishSeq: -1,
+      subscribeSeq: TRICKLE_SEQ_CURRENT,
+      trickleCreated: false,
+      trickleResetSent: false,
+      closed: false,
+    };
+    putSession(sessionRecord);
+    startPaymentLoop(config, sessionRecord);
+
+    let publishSeq = 0;
+    try {
+      await prepareTricklePublish(sessionRecord);
+      publishSeq = Math.max(0, sessionRecord.publishSeq);
+    } catch (prepareErr) {
+      const message = prepareErr instanceof Error ? prepareErr.message : String(prepareErr);
+      return Response.json({ error: "trickle_prepare_failed", message }, { status: 502 });
+    }
+
+    return Response.json({
+      sessionId,
+      manifestId: job.manifestId,
+      mimeType: job.mimeType,
+      publishSeq,
+      subscribeSeq: sessionRecord.subscribeSeq,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return Response.json({ error: "start_session_failed", message }, { status: 502 });
+  }
+}
+
 export function createGatewayStartSessionHandler(config: GatewayServerConfig | null) {
   return async (request: Request): Promise<Response> => {
     if (!config) {
@@ -50,89 +140,11 @@ export function createGatewayStartSessionHandler(config: GatewayServerConfig | n
       return unauthorizedResponse();
     }
 
-    let body: StartGatewaySessionRequest;
-    try {
-      const parsed: unknown = await request.json();
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return Response.json({ error: "invalid_request" }, { status: 400 });
-      }
-      const record = parsed as Record<string, unknown>;
-      const modelId = typeof record.modelId === "string" ? record.modelId.trim() : "";
-      if (!modelId) {
-        return Response.json({ error: "modelId is required" }, { status: 400 });
-      }
-      body = {
-        modelId,
-        orchestratorUrl:
-          typeof record.orchestratorUrl === "string" ? record.orchestratorUrl : undefined,
-        discoveryUrl:
-          typeof record.discoveryUrl === "string" ? record.discoveryUrl : config.discoveryUrl,
-        params:
-          record.params && typeof record.params === "object" && !Array.isArray(record.params)
-            ? (record.params as Record<string, unknown>)
-            : undefined,
-        streamId: typeof record.streamId === "string" ? record.streamId : undefined,
-        requestId: typeof record.requestId === "string" ? record.requestId : undefined,
-      };
-    } catch {
-      return Response.json({ error: "invalid_json" }, { status: 400 });
+    const body = await parseStartGatewaySessionRequest(request, config);
+    if (body instanceof Response) {
+      return body;
     }
-
-    try {
-      const job = await startLv2vSession({
-        request: body,
-        signerUrl: config.signerUrl,
-        signerHeaders: signerHeadersFromBearer(token),
-        discoveryUrl: config.discoveryUrl,
-        discoveryTimeoutMs: config.discoveryTimeoutMs,
-        useTofu: config.useTofu,
-      });
-
-      const sessionId = createSessionId();
-      const ownerTokenHash = hashBearerToken(token);
-      const sessionRecord = {
-        id: sessionId,
-        ownerTokenHash,
-        manifestId: job.manifestId,
-        publishUrl: job.publishUrl,
-        subscribeUrl: job.subscribeUrl,
-        controlUrl: job.controlUrl,
-        mimeType: job.mimeType,
-        paymentSession: job.paymentSession,
-        orchestratorUrl: job.orchestratorUrl,
-        publishSeq: -1,
-        subscribeSeq: TRICKLE_SEQ_CURRENT,
-        trickleCreated: false,
-        trickleResetSent: false,
-        closed: false,
-      };
-      putSession(sessionRecord);
-      startPaymentLoop(config, sessionRecord);
-
-      let publishSeq = 0;
-      try {
-        await prepareTricklePublish(sessionRecord);
-        publishSeq = Math.max(0, sessionRecord.publishSeq);
-      } catch (prepareErr) {
-        const message =
-          prepareErr instanceof Error ? prepareErr.message : String(prepareErr);
-        return Response.json(
-          { error: "trickle_prepare_failed", message },
-          { status: 502 },
-        );
-      }
-
-      return Response.json({
-        sessionId,
-        manifestId: job.manifestId,
-        mimeType: job.mimeType,
-        publishSeq,
-        subscribeSeq: sessionRecord.subscribeSeq,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return Response.json({ error: "start_session_failed", message }, { status: 502 });
-    }
+    return startGatewaySessionRecord(config, token, body);
   };
 }
 

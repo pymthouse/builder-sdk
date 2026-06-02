@@ -6,7 +6,32 @@ import {
   type StartGatewaySessionRequest,
   type StartGatewaySessionResponse,
 } from "../types.js";
+import { stripTrailingSlashes } from "../../string-utils.js";
 import { resolveSignerToken, type SignerCredentials } from "./resolve-signer.js";
+
+function jsonErrorMessage(
+  body: Record<string, unknown>,
+  status: number,
+  fallback: string,
+): string {
+  if (typeof body.message === "string") {
+    return body.message;
+  }
+  if (typeof body.error === "string") {
+    return body.error;
+  }
+  return `${fallback} (${status})`;
+}
+
+function resolveSubscribeSegmentSeq(requestedSeq: number, headerSeq: number): number {
+  if (Number.isFinite(headerSeq)) {
+    return headerSeq;
+  }
+  if (requestedSeq >= 0) {
+    return requestedSeq;
+  }
+  return 0;
+}
 
 function isTrickleLeadingIndex(seq: number): boolean {
   return seq === TRICKLE_SEQ_LATEST || seq === TRICKLE_SEQ_CURRENT;
@@ -42,7 +67,7 @@ export class BrowserGatewayClient {
   }
 
   get baseUrl(): string {
-    return this.options.baseUrl.replace(/\/$/, "");
+    return stripTrailingSlashes(this.options.baseUrl);
   }
 
   get signerAccessToken(): string | null {
@@ -78,13 +103,7 @@ export class BrowserGatewayClient {
 
     const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (!response.ok) {
-      const message =
-        typeof body.message === "string"
-          ? body.message
-          : typeof body.error === "string"
-            ? body.error
-            : `startSession failed (${response.status})`;
-      throw new Error(message);
+      throw new Error(jsonErrorMessage(body, response.status, "startSession failed"));
     }
 
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
@@ -213,30 +232,37 @@ export class BrowserGatewayClient {
       throw new Error(`subscribeOutputSegment failed (${response.status}): ${text.slice(0, 300)}`);
     }
 
-    this.subscribeEmptyPolls = 0;
     const segmentSeq = parseHeaderInt(response.headers, "X-Gateway-Segment-Seq");
     const latestSeq = parseHeaderInt(response.headers, "X-Gateway-Latest-Seq");
-    const resolvedSegmentSeq = Number.isFinite(segmentSeq)
-      ? segmentSeq
-      : requestedSeq >= 0
-        ? requestedSeq
-        : 0;
+    const resolvedSegmentSeq = resolveSubscribeSegmentSeq(requestedSeq, segmentSeq);
     const resolvedLatest = Number.isFinite(latestSeq) ? latestSeq : resolvedSegmentSeq;
 
+    const byteCount = await this.readSubscribeBody(response, onChunk);
+    if (byteCount === 0) {
+      this.handleSubscribeEmpty(requestedSeq, response.headers);
+      return null;
+    }
+
+    this.advanceSubscribeSeq(requestedSeq, response.headers, resolvedLatest);
+    return {
+      segmentSeq: resolvedSegmentSeq,
+      latestSeq: resolvedLatest,
+      nextSeq: this.subscribeSeq,
+      byteCount,
+    };
+  }
+
+  private async readSubscribeBody(
+    response: Response,
+    onChunk: (chunk: Uint8Array) => void,
+  ): Promise<number> {
     if (!response.body) {
       const data = await response.arrayBuffer();
       if (data.byteLength === 0) {
-        this.handleSubscribeEmpty(requestedSeq, response.headers);
-        return null;
+        return 0;
       }
       onChunk(new Uint8Array(data));
-      this.advanceSubscribeSeq(requestedSeq, response.headers, resolvedLatest);
-      return {
-        segmentSeq: resolvedSegmentSeq,
-        latestSeq: resolvedLatest,
-        nextSeq: this.subscribeSeq,
-        byteCount: data.byteLength,
-      };
+      return data.byteLength;
     }
 
     const reader = response.body.getReader();
@@ -255,19 +281,7 @@ export class BrowserGatewayClient {
     } finally {
       reader.releaseLock();
     }
-
-    if (bytesRead === 0) {
-      this.handleSubscribeEmpty(requestedSeq, response.headers);
-      return null;
-    }
-
-    this.advanceSubscribeSeq(requestedSeq, response.headers, resolvedLatest);
-    return {
-      segmentSeq: resolvedSegmentSeq,
-      latestSeq: resolvedLatest,
-      nextSeq: this.subscribeSeq,
-      byteCount: bytesRead,
-    };
+    return bytesRead;
   }
 
   /** @deprecated Use subscribeOutputSegment() — live-edge-only polling does not advance output seq. */
@@ -310,41 +324,44 @@ export class BrowserGatewayClient {
   private handleSubscribeEmpty(requestedSeq: number, headers: Headers): void {
     this.subscribeEmptyPolls += 1;
     const latest = parseHeaderInt(headers, "X-Gateway-Latest-Seq");
-    const wait = headers.get("X-Gateway-Wait") === "1";
-
-    if (Number.isFinite(latest)) {
-      if (wait && requestedSeq >= 0 && latest < requestedSeq) {
-        // Polling ahead of live edge — retry same index (trickle_subscriber.py).
-        this.subscribeSeq = requestedSeq;
-        return;
-      }
-      if (isTrickleLeadingIndex(requestedSeq)) {
-        // Leading-index bootstrap: -2 -> -1 -> latest >= 0 when available.
-        this.subscribeSeq = latest >= 0 ? latest : TRICKLE_SEQ_LATEST;
-        this.subscribeEmptyPolls = 0;
-        return;
-      }
-      if (requestedSeq >= 0 && latest === requestedSeq) {
-        this.subscribeSeq = requestedSeq;
-        return;
-      }
-      if (requestedSeq >= 0 && latest > requestedSeq) {
-        this.subscribeSeq = latest;
-        this.subscribeEmptyPolls = 0;
-        return;
-      }
+    if (Number.isFinite(latest) && this.applyLatestSeqOnEmptyPoll(requestedSeq, latest, headers)) {
+      return;
     }
-
-    // No latest header: keep retrying current output index rather than rewinding.
     if (requestedSeq >= 0) {
       this.subscribeSeq = requestedSeq;
       return;
     }
-
     if (this.subscribeEmptyPolls >= 12) {
       this.subscribeSeq = TRICKLE_SEQ_LATEST;
       this.subscribeEmptyPolls = 0;
     }
+  }
+
+  private applyLatestSeqOnEmptyPoll(
+    requestedSeq: number,
+    latest: number,
+    headers: Headers,
+  ): boolean {
+    const wait = headers.get("X-Gateway-Wait") === "1";
+    if (wait && requestedSeq >= 0 && latest < requestedSeq) {
+      this.subscribeSeq = requestedSeq;
+      return true;
+    }
+    if (isTrickleLeadingIndex(requestedSeq)) {
+      this.subscribeSeq = latest >= 0 ? latest : TRICKLE_SEQ_LATEST;
+      this.subscribeEmptyPolls = 0;
+      return true;
+    }
+    if (requestedSeq >= 0 && latest === requestedSeq) {
+      this.subscribeSeq = requestedSeq;
+      return true;
+    }
+    if (requestedSeq >= 0 && latest > requestedSeq) {
+      this.subscribeSeq = latest;
+      this.subscribeEmptyPolls = 0;
+      return true;
+    }
+    return false;
   }
 
   async subscribeSegment(seq?: number): Promise<ArrayBuffer | null> {

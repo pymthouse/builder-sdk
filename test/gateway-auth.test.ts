@@ -16,6 +16,13 @@ describe("gateway auth", () => {
     expect(extractBearerToken(request)).toBeNull();
   });
 
+  it("accepts bearer scheme case-insensitively", () => {
+    const request = new Request("https://example.com", {
+      headers: { Authorization: "bearer   spaced-token" },
+    });
+    expect(extractBearerToken(request)).toBe("spaced-token");
+  });
+
   it("hashes bearer tokens deterministically", () => {
     expect(hashBearerToken("abc")).toBe(hashBearerToken("abc"));
     expect(hashBearerToken("abc")).not.toBe(hashBearerToken("def"));

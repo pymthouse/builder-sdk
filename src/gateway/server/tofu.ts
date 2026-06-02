@@ -56,7 +56,7 @@ async function fetchTofuRootCert(target: string): Promise<{ rootPem: Buffer; aut
       () => {
         const peer = socket.getPeerCertificate();
         socket.end();
-        if (!peer || !peer.raw) {
+        if (!peer?.raw) {
           reject(new Error("No peer certificate"));
           return;
         }

@@ -1,4 +1,4 @@
-import { stripTrailingSlashes } from "../string-utils.js";
+import { stripIssuerOriginFromOidcUrl, stripTrailingSlashes } from "../string-utils.js";
 import { PmtHouseError } from "../errors.js";
 import { readJsonObjectFromResponse } from "./fetch-json.js";
 import { signerHandlerErrorResponse } from "./handler-errors.js";
@@ -62,7 +62,7 @@ export async function mintUserAccessTokenFromApiKey(input: {
   fetch?: typeof fetch;
 }): Promise<{ access_token: string; expires_in: number; scope: string }> {
   const fetchImpl = input.fetch ?? fetch;
-  const issuerOrigin = stripTrailingSlashes(input.issuerUrl).replace(/\/api\/v1\/oidc\/?$/, "");
+  const issuerOrigin = stripIssuerOriginFromOidcUrl(input.issuerUrl);
   const url = `${issuerOrigin}/api/v1/apps/${encodeURIComponent(input.publicClientId)}/auth/api-key/token`;
   const response = await fetchImpl(url, {
     method: "POST",

@@ -27,9 +27,7 @@ export async function insecureFetch(
       ? undefined
       : init.body instanceof Buffer
         ? init.body
-        : init.body instanceof Uint8Array
-          ? Buffer.from(init.body)
-          : Buffer.from(init.body);
+        : Buffer.from(init.body);
 
   return new Promise((resolve, reject) => {
     const headers = { ...init.headers };

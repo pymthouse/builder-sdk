@@ -14,6 +14,25 @@
 
 import { exchangeApiKeyForSigner } from "@pymthouse/builder-sdk/signer/api-key-exchange.js";
 
+function isSafePathSegment(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 128) {
+    return false;
+  }
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    const ok =
+      (c >= 48 && c <= 57) ||
+      (c >= 65 && c <= 90) ||
+      (c >= 97 && c <= 122) ||
+      c === 95 ||
+      c === 45;
+    if (!ok) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const apiKey = process.env.PMTH_API_KEY?.trim();
 const facadeUrl = (process.env.DASHBOARD_ORIGIN ?? "http://localhost:3002").replace(/\/$/, "");
 const modelId = process.env.GATEWAY_MODEL_ID?.trim() ?? "streamdiffusion-sdxl";
@@ -58,7 +77,7 @@ if (!startResponse.ok) {
 }
 
 const sessionId = startBody.sessionId;
-if (sessionId) {
+if (isSafePathSegment(sessionId)) {
   await fetch(`${facadeUrl}/api/gateway/sessions/${encodeURIComponent(sessionId)}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${signerToken}` },

@@ -48,5 +48,8 @@ describe("config", () => {
     expect(getBuilderApiV1BaseFromIssuerUrl("https://ph.example/api/v1/oidc")).toBe(
       "https://ph.example/api/v1",
     );
+    expect(getBuilderApiV1BaseFromIssuerUrl("https://ph.example/api/v1/oidc/")).toBe(
+      "https://ph.example/api/v1",
+    );
   });
 });

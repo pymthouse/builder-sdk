@@ -1,3 +1,5 @@
+import { stripIssuerOriginFromOidcUrl } from "../../string-utils.js";
+
 export type GatewayServerConfig = {
   enabled: boolean;
   signerUrl: string;
@@ -18,9 +20,7 @@ export function readGatewayConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   const signerUrl =
     env.PYMTHOUSE_SIGNER_URL?.trim() ||
     env.SIGNER_PUBLIC_URL?.trim() ||
-    (issuerUrl
-      ? `${issuerUrl.replace(/\/api\/v1\/oidc\/?$/, "").replace(/\/+$/, "")}/api/signer`
-      : "");
+    (issuerUrl ? `${stripIssuerOriginFromOidcUrl(issuerUrl)}/api/signer` : "");
 
   if (!signerUrl) {
     return null;

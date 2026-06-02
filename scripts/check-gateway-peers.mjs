@@ -4,7 +4,7 @@ try {
   await import("@grpc/grpc-js");
   await import("@grpc/proto-loader");
   console.log("gateway peers: ok");
-} catch (e) {
+} catch {
   console.error("Install @grpc/grpc-js and @grpc/proto-loader for gateway/server");
   process.exit(1);
 }

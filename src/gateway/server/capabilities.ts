@@ -22,13 +22,19 @@ export function buildLv2vCapabilitiesMessage(modelId: string): Record<string, un
   };
 }
 
+function capabilityForDiscoveryUrl(url: string, modelId: string): string {
+  if (!url.includes("/v1/discovery/raw")) {
+    return modelCapabilityQuery(modelId);
+  }
+  if (!modelId.includes("/")) {
+    return modelId;
+  }
+  const segment = modelId.split("/").pop();
+  return segment ?? modelId;
+}
+
 export function appendCapabilityQuery(url: string, modelId: string): string {
   const parsed = new URL(url);
-  const cap = url.includes("/v1/discovery/raw")
-    ? modelId.includes("/")
-      ? modelId.split("/").pop()!
-      : modelId
-    : modelCapabilityQuery(modelId);
-  parsed.searchParams.append("caps", cap);
+  parsed.searchParams.append("caps", capabilityForDiscoveryUrl(url, modelId));
   return parsed.toString();
 }
