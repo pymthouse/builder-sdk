@@ -45,9 +45,24 @@ import type {
   PmtHouseClientOptions,
   TokenExchangeResponse,
   UpsertAppUserInput,
+  BillingProduct,
+  ListBillingProductsResult,
+  PlanSyncResult,
+  SignerRoutingResponse,
+  SignedTicketIngestInput,
+  SignedTicketIngestResult,
   UsageApiResponse,
   UsageQueryInput,
+  UsageBalanceResponse,
+  UserAllowanceGrantInput,
+  UserAllowancesResponse,
+  UserSubscriptionResponse,
+  GrantSource,
 } from "./types.js";
+import {
+  ingestSignedTicket,
+  ingestSignedTicketsBatch,
+} from "./ingest.js";
 
 const TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
 const SUBJECT_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
@@ -211,6 +226,60 @@ export class PmtHouseClient {
     });
   }
 
+  /**
+   * Exchange a long-lived dashboard API key (`pmth_*`) for a short-lived user JWT.
+   */
+  async exchangeApiKeyForUserAccessToken(input: {
+    apiKey: string;
+    scope?: string;
+  }): Promise<MintUserAccessTokenResponse> {
+    const url = `${this.getAppsBaseUrl()}/auth/api-key/token`;
+    return this.requestJson<MintUserAccessTokenResponse>(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey.trim()}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(input.scope ? { scope: input.scope } : {}),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Exchange a dashboard API key for a signer session via a trusted facade (recommended)
+   * or directly when M2M credentials are available on this client.
+   */
+  async exchangeApiKeyForSignerSession(input: {
+    apiKey: string;
+    scope?: string;
+    facadeUrl?: string;
+  }): Promise<TokenExchangeResponse> {
+    if (input.facadeUrl?.trim()) {
+      const { exchangeApiKeyForSigner } = await import("./signer/api-key-exchange.js");
+      const exchanged = await exchangeApiKeyForSigner({
+        facadeUrl: input.facadeUrl.trim(),
+        apiKey: input.apiKey,
+        scope: input.scope,
+        clientId: this.publicClientId,
+        fetch: this.fetchImpl,
+      });
+      return {
+        access_token: exchanged.access_token,
+        token_type: exchanged.token_type,
+        expires_in: exchanged.expires_in,
+        scope: exchanged.scope,
+        issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      };
+    }
+
+    const userToken = await this.exchangeApiKeyForUserAccessToken({
+      apiKey: input.apiKey,
+      scope: input.scope,
+    });
+    return this.exchangeForSignerSession({ userJwt: userToken.access_token });
+  }
+
   async completeDeviceApproval(
     input: DeviceApprovalInput,
   ): Promise<TokenExchangeResponse> {
@@ -364,6 +433,7 @@ export class PmtHouseClient {
     if (input.groupBy) url.searchParams.set("groupBy", input.groupBy);
     if (input.userId) url.searchParams.set("userId", input.userId);
     if (input.gatewayRequestId) url.searchParams.set("gatewayRequestId", input.gatewayRequestId);
+    if (input.includeRetail) url.searchParams.set("include", "retail");
 
     return this.requestJson<UsageApiResponse>(url.toString(), {
       method: "GET",
@@ -375,6 +445,159 @@ export class PmtHouseClient {
   /**
    * Session-scoped usage for one `externalUserId`: user rollup plus merged pipeline/model breakdown.
    */
+  async ingestSignedTicket(ticket: SignedTicketIngestInput): Promise<SignedTicketIngestResult> {
+    return ingestSignedTicket({
+      issuerUrl: this.issuerUrl,
+      publicClientId: this.publicClientId,
+      m2mClientId: this.m2mClientId,
+      m2mClientSecret: this.m2mClientSecret,
+      ticket,
+      fetch: this.fetchImpl,
+    });
+  }
+
+  async ingestSignedTickets(
+    tickets: SignedTicketIngestInput[],
+  ): Promise<{ results: Array<SignedTicketIngestResult & { requestId?: string; ok?: boolean }> }> {
+    return ingestSignedTicketsBatch({
+      issuerUrl: this.issuerUrl,
+      publicClientId: this.publicClientId,
+      m2mClientId: this.m2mClientId,
+      m2mClientSecret: this.m2mClientSecret,
+      tickets,
+      fetch: this.fetchImpl,
+    });
+  }
+
+  async getSignerRouting(): Promise<SignerRoutingResponse> {
+    return this.requestJson<SignerRoutingResponse>(
+      `${this.getAppsBaseUrl()}/signer/routing`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  async listBillingProducts(): Promise<ListBillingProductsResult> {
+    const url = `${this.getAppsBaseUrl()}/plans?apiVersion=2`;
+    const body = await this.requestJson<ListBillingProductsResult & { plans?: BillingProduct[] }>(
+      url,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+    return {
+      apiVersion: body.apiVersion ?? 2,
+      products: body.products ?? body.plans ?? [],
+    };
+  }
+
+  async syncBillingProduct(planId: string): Promise<PlanSyncResult> {
+    return this.requestJson<PlanSyncResult>(
+      `${this.getAppsBaseUrl()}/plans/${encodeURIComponent(planId)}/sync`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  async getUsageBalance(externalUserId: string): Promise<UsageBalanceResponse> {
+    const url = new URL(`${this.getAppsBaseUrl()}/usage/balance`);
+    url.searchParams.set("externalUserId", externalUserId);
+    return this.requestJson<UsageBalanceResponse>(url.toString(), {
+      method: "GET",
+      headers: this.builderHeaders(),
+      cache: "no-store",
+    });
+  }
+
+  async getUserAllowances(externalUserId: string): Promise<UserAllowancesResponse> {
+    return this.requestJson<UserAllowancesResponse>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/allowances`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  async grantUserAllowance(
+    externalUserId: string,
+    input: UserAllowanceGrantInput,
+  ): Promise<UserAllowancesResponse & { grantedUsdMicros?: string; featureKey?: string }> {
+    return this.requestJson(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/allowances`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify(input),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * @deprecated Removed from PymtHouse — use {@link getUsageBalance} or {@link getUserAllowances}.
+   */
+  async getUserCredits(externalUserId: string): Promise<UsageBalanceResponse> {
+    return this.getUsageBalance(externalUserId);
+  }
+
+  /**
+   * @deprecated Removed from PymtHouse — use {@link grantUserAllowance} (`POST .../allowances`).
+   */
+  async grantUserCredits(
+    externalUserId: string,
+    input: { amountUsdMicros: string; source?: GrantSource; featureKey?: string },
+  ): Promise<UsageBalanceResponse & { grantedUsdMicros?: string; featureKey?: string }> {
+    const result = await this.grantUserAllowance(externalUserId, {
+      amountUsdMicros: input.amountUsdMicros,
+      source: input.source ?? "manual",
+      featureKey: input.featureKey,
+    });
+    const flat = result as UserAllowancesResponse & {
+      balanceUsdMicros?: string;
+      consumedUsdMicros?: string;
+      lifetimeGrantedUsdMicros?: string;
+      hasAccess?: boolean;
+      grantedUsdMicros?: string;
+      featureKey?: string;
+    };
+    const nested = result.allowances;
+    return {
+      externalUserId: result.externalUserId,
+      balanceUsdMicros:
+        flat.balanceUsdMicros ?? nested?.balanceUsdMicros ?? "0",
+      consumedUsdMicros:
+        flat.consumedUsdMicros ?? nested?.consumedUsdMicros ?? "0",
+      lifetimeGrantedUsdMicros:
+        flat.lifetimeGrantedUsdMicros ?? nested?.lifetimeGrantedUsdMicros ?? "0",
+      hasAccess: flat.hasAccess ?? nested?.hasAccess ?? false,
+      remainingUsdMicros:
+        flat.balanceUsdMicros ?? nested?.balanceUsdMicros,
+      grantedUsdMicros: flat.grantedUsdMicros,
+      featureKey: flat.featureKey,
+    };
+  }
+
+  async getUserSubscription(externalUserId: string): Promise<UserSubscriptionResponse> {
+    return this.requestJson<UserSubscriptionResponse>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/subscription`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
   async fetchUsageForExternalUser(input: {
     externalUserId: string;
     startDate: string;
@@ -399,7 +622,18 @@ export class PmtHouseClient {
         }),
       ),
     );
-    return buildMeScopeUsagePayload(usageByUser, input.externalUserId, usagePipelineModels);
+    const usageDaily = await this.getUsage({
+      startDate: input.startDate,
+      endDate: input.endDate,
+      groupBy: "daily_pipeline",
+      userId: input.externalUserId,
+    });
+    return buildMeScopeUsagePayload(
+      usageByUser,
+      input.externalUserId,
+      usagePipelineModels,
+      usageDaily,
+    );
   }
 
   async getAppManifest(opts?: {

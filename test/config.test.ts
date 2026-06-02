@@ -6,6 +6,8 @@ import {
   getBuilderApiV1BaseFromIssuerUrl,
   isPymthouseConfigured,
   readPymthouseEnv,
+  parseHttpOrigin,
+  buildGatewaySessionDeleteUrl,
 } from "../src/config.js";
 
 describe("config", () => {
@@ -47,6 +49,21 @@ describe("config", () => {
   it("getBuilderApiV1BaseFromIssuerUrl strips /oidc suffix", () => {
     expect(getBuilderApiV1BaseFromIssuerUrl("https://ph.example/api/v1/oidc")).toBe(
       "https://ph.example/api/v1",
+    );
+    expect(getBuilderApiV1BaseFromIssuerUrl("https://ph.example/api/v1/oidc/")).toBe(
+      "https://ph.example/api/v1",
+    );
+  });
+
+  it("parseHttpOrigin validates facade origins", () => {
+    expect(parseHttpOrigin("https://dash.example/", "http://localhost:3002")).toBe(
+      "https://dash.example",
+    );
+  });
+
+  it("buildGatewaySessionDeleteUrl rejects unsafe session ids", () => {
+    expect(() => buildGatewaySessionDeleteUrl("https://dash.example", "../evil")).toThrow(
+      TypeError,
     );
   });
 });

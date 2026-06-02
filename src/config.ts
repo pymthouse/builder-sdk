@@ -1,4 +1,12 @@
-import { stripTrailingSlashes } from "./string-utils.js";
+import {
+  buildGatewaySessionDeleteUrl,
+  isSafePathSegment,
+  parseHttpOrigin,
+  stripOidcPathSuffix,
+  stripTrailingSlashes,
+} from "./string-utils.js";
+
+export { buildGatewaySessionDeleteUrl, isSafePathSegment, parseHttpOrigin };
 
 /** Operator hint when Builder / Usage cannot run. */
 export const PYMTHOUSE_NOT_CONFIGURED_MESSAGE =
@@ -58,8 +66,7 @@ export function isPymthouseConfigured(): boolean {
 
 /** Resolve Builder API base (`…/api/v1`) from issuer URL (`…/api/v1/oidc`). */
 export function getBuilderApiV1BaseFromIssuerUrl(issuerUrl: string): string {
-  const noTrail = stripTrailingSlashes(issuerUrl.trim());
-  return noTrail.replace(/\/oidc\/?$/i, "");
+  return stripOidcPathSuffix(issuerUrl);
 }
 
 /** Origin of the OIDC issuer host (e.g. `https://pymthouse.com`). */

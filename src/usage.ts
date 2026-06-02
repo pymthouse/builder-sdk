@@ -2,6 +2,7 @@ import type {
   UsageApiResponse,
   UsageByPipelineModelFiatRow,
   UsageByUserRow,
+  UsageDailyPipelineRow,
   UsageForExternalUser,
   MeScopeUsagePayload,
 } from "./types.js";
@@ -181,15 +182,19 @@ export function mergeUsageByPipelineModel(
       const existing = byKey.get(key);
       const rowCurrency = row.currency ?? "USD";
 
+      const networkFee = row.networkFeeUsdMicros ?? "0";
+      const ownerCharge = row.ownerChargeUsdMicros ?? "0";
+      const endUserBillable = row.endUserBillableUsdMicros ?? "0";
+
       if (!existing) {
         byKey.set(key, {
           pipeline,
           modelId,
           requestCount: row.requestCount,
           currency: rowCurrency,
-          networkFeeUsdMicros: row.networkFeeUsdMicros,
-          ownerChargeUsdMicros: row.ownerChargeUsdMicros,
-          endUserBillableUsdMicros: row.endUserBillableUsdMicros,
+          networkFeeUsdMicros: networkFee,
+          ownerChargeUsdMicros: ownerCharge,
+          endUserBillableUsdMicros: endUserBillable,
         });
         continue;
       }
@@ -197,16 +202,13 @@ export function mergeUsageByPipelineModel(
         ...existing,
         requestCount: existing.requestCount + row.requestCount,
         networkFeeUsdMicros: (
-          parseSafeBigInt(existing.networkFeeUsdMicros) +
-          parseSafeBigInt(row.networkFeeUsdMicros)
+          parseSafeBigInt(existing.networkFeeUsdMicros) + parseSafeBigInt(networkFee)
         ).toString(),
         ownerChargeUsdMicros: (
-          parseSafeBigInt(existing.ownerChargeUsdMicros) +
-          parseSafeBigInt(row.ownerChargeUsdMicros)
+          parseSafeBigInt(existing.ownerChargeUsdMicros) + parseSafeBigInt(ownerCharge)
         ).toString(),
         endUserBillableUsdMicros: (
-          parseSafeBigInt(existing.endUserBillableUsdMicros) +
-          parseSafeBigInt(row.endUserBillableUsdMicros)
+          parseSafeBigInt(existing.endUserBillableUsdMicros) + parseSafeBigInt(endUserBillable)
         ).toString(),
       });
     }
@@ -223,9 +225,11 @@ export function buildMeScopeUsagePayload(
   usageByUser: UsageApiResponse,
   externalUserId: string,
   usagePipelineModel?: UsageApiResponse | UsageApiResponse[],
+  usageDaily?: UsageApiResponse,
 ): MeScopeUsagePayload {
   const summary = summarizeUsageFiatForExternalUser(usageByUser, externalUserId);
   const pipelineModels = mergeUsageByPipelineModel(usagePipelineModel);
+  const dailyByPipeline: UsageDailyPipelineRow[] = usageDaily?.byDailyPipeline ?? [];
   return {
     clientId: usageByUser.clientId,
     period: usageByUser.period,
@@ -237,6 +241,7 @@ export function buildMeScopeUsagePayload(
       ownerChargeUsdMicros: summary.ownerChargeUsdMicros,
       endUserBillableUsdMicros: summary.endUserBillableUsdMicros,
       pipelineModels,
+      dailyByPipeline,
     },
   };
 }

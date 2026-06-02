@@ -1,6 +1,6 @@
 {
   "name": "@pymthouse/builder-sdk",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "PymtHouse Builder API and OIDC client (OpenID-certified oauth4webapi)",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./plan-pricing": {
+      "types": "./dist/plan-pricing.d.ts",
+      "import": "./dist/plan-pricing.js",
+      "require": "./dist/plan-pricing.cjs"
     },
     "./format": {
       "types": "./dist/format.d.ts",
@@ -46,13 +51,46 @@
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js",
       "require": "./dist/verify.cjs"
+    },
+    "./signer/server": {
+      "types": "./dist/signer/server.d.ts",
+      "import": "./dist/signer/server.js",
+      "require": "./dist/signer/server.cjs"
+    },
+    "./gateway": {
+      "types": "./dist/gateway/index.d.ts",
+      "import": "./dist/gateway/index.js",
+      "require": "./dist/gateway/index.cjs"
+    },
+    "./gateway/client": {
+      "types": "./dist/gateway/client/index.d.ts",
+      "import": "./dist/gateway/client/index.js",
+      "require": "./dist/gateway/client/index.cjs"
+    },
+    "./gateway/server": {
+      "types": "./dist/gateway/server/index.d.ts",
+      "import": "./dist/gateway/server/index.js",
+      "require": "./dist/gateway/server/index.cjs"
     }
   },
   "files": [
     "dist",
+    "gateway/proto",
     "README.md",
     "LICENSE"
   ],
+  "peerDependencies": {
+    "@grpc/grpc-js": "^1.12.0",
+    "@grpc/proto-loader": "^0.7.0"
+  },
+  "peerDependenciesMeta": {
+    "@grpc/grpc-js": {
+      "optional": true
+    },
+    "@grpc/proto-loader": {
+      "optional": true
+    }
+  },
   "sideEffects": false,
   "engines": {
     "node": ">=20"
@@ -65,6 +103,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "check:gateway-peers": "node scripts/check-gateway-peers.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prepack": "pnpm run build"
@@ -73,6 +112,8 @@
     "oauth4webapi": "^3.8.5"
   },
   "devDependencies": {
+    "@grpc/grpc-js": "^1.14.3",
+    "@grpc/proto-loader": "^0.8.0",
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.0",
     "eslint": "^9.18.0",

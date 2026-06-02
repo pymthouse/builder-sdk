@@ -68,6 +68,48 @@ const signerSession = await client.mintUserSignerSessionToken({
 For advanced flows that already have a user JWT, call
 `exchangeForSignerSession({ userJwt })` directly.
 
+### Dashboard API keys (long-lived `pmth_*`)
+
+Create a key in the Dashboard **API keys** page, then exchange it for a signer
+session without repeating device login:
+
+```ts
+const session = await client.exchangeApiKeyForSignerSession({
+  apiKey: process.env.PMTH_API_KEY!,
+  facadeUrl: process.env.DASHBOARD_ORIGIN!, // e.g. https://dashboard.example.com
+  scope: "sign:job",
+});
+// session.access_token — opaque signer bearer for discovery / gateway
+```
+
+See `examples/stream-with-api-key.mjs` for a minimal Node script.
+
+## Browser gateway (optional module)
+
+Live Video-to-Video streaming from the browser uses a **same-origin HTTP segment relay**
+implemented in optional subpaths (not exported from the main entry):
+
+| Subpath | Use |
+|---------|-----|
+| `@pymthouse/builder-sdk/gateway` | Shared types |
+| `@pymthouse/builder-sdk/gateway/client` | `BrowserGatewayClient` for dashboard / browser apps |
+| `@pymthouse/builder-sdk/gateway/server` | Route Handler factories for Next.js |
+
+Install peer dependencies when using the server module:
+
+```bash
+pnpm add @grpc/grpc-js @grpc/proto-loader
+```
+
+Auth flow (same signer bearer as Python `livepeer-python-gateway`):
+
+1. `exchangeApiKeyForSignerSession({ apiKey, facadeUrl: dashboardOrigin })` or `POST /api/pymthouse/keys/exchange`
+2. `Authorization: Bearer <signer_token>` on `POST /api/gateway/sessions`
+
+Enable relay on the dashboard with `GATEWAY_ENABLED=1` and `NEXT_PUBLIC_GATEWAY_ENABLED=1`.
+
+See `examples/gateway-session-smoke.mjs` for a headless session start test.
+
 Integrators can use the higher-level workflow helpers:
 
 ```ts
@@ -129,6 +171,28 @@ const usage = await client.getUsage({ groupBy: "user", startDate, endDate });
 const summary = summarizeUsageForExternalUser(usage, externalUserId);
 // summary.requestCount, summary.feeWei (wei string)
 ```
+
+## Billing: plans, retail usage, signed-ticket ingest
+
+**Plans (apiVersion=2):** `listBillingProducts({ apiVersion: "2" })` returns `BillingProduct[]` with capability pricing and sync status. `syncBillingProduct(planId)` POSTs to OpenMeter.
+
+**Retail estimates:** `getUsage({ includeRetail: true, groupBy: "pipeline_model" })` adds `endUserBillableUsdMicros` / fiat rows when the active plan has retail rates.
+
+**Signed-ticket ingest (platform metering):** after a signer proxy response, call `ingestSignedTicket` or use `forwardWithOptionalMetering` with `metering: { mode: "pymthouse_hosted" }` on `createSignerProxyServer` — usage is stripped from the client response and POSTed to `POST /api/v1/apps/{id}/usage/signed-tickets`.
+
+**Routing:** `getSignerRouting()` returns `signerApiUrl`, `remoteDmzUrl`, `meteringMode`, and pattern hints for hosted vs platform-ingest vs BYO OpenMeter.
+
+**Allowances (OpenMeter):** Trial and manual USD micros allowance use OpenMeter entitlements — not a Postgres wei ledger.
+
+| Method | SDK | HTTP |
+|--------|-----|------|
+| Read balance | `getUsageBalance(externalUserId)` | `GET .../usage/balance?externalUserId=` |
+| Read allowance detail | `getUserAllowances(externalUserId)` | `GET .../users/{id}/allowances` |
+| Top-up grant | `grantUserAllowance(externalUserId, { amountUsdMicros, source })` | `POST .../users/{id}/allowances` |
+
+`grantUserCredits` / `getUserCredits` remain as **deprecated** aliases that call the allowances / balance endpoints. `POST .../users/{id}/credits` was removed from PymtHouse (the route may still re-export allowances temporarily).
+
+**Plan pricing helpers:** `markupPercentToRetailRateUsd`, `applyRetailRateToNetworkMicros` (exported from the main entry).
 
 ## Usage API: pipeline/model grouping
 

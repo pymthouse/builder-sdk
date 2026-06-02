@@ -3,6 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     index: "src/index.ts",
+    "plan-pricing": "src/plan-pricing.ts",
     format: "src/format.ts",
     env: "src/env.ts",
     config: "src/config.ts",
@@ -10,6 +11,10 @@ export default defineConfig({
     device: "src/device.ts",
     "device-initiate": "src/device-initiate.ts",
     verify: "src/verify.ts",
+    "signer/server": "src/signer/server.ts",
+    "gateway/index": "src/gateway/index.ts",
+    "gateway/client/index": "src/gateway/client/index.ts",
+    "gateway/server/index": "src/gateway/server/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,
