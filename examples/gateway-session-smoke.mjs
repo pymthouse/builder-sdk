@@ -13,28 +13,13 @@
  */
 
 import { exchangeApiKeyForSigner } from "@pymthouse/builder-sdk/signer/api-key-exchange.js";
-
-function isSafePathSegment(value) {
-  if (typeof value !== "string" || value.length === 0 || value.length > 128) {
-    return false;
-  }
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    const ok =
-      (c >= 48 && c <= 57) ||
-      (c >= 65 && c <= 90) ||
-      (c >= 97 && c <= 122) ||
-      c === 95 ||
-      c === 45;
-    if (!ok) {
-      return false;
-    }
-  }
-  return true;
-}
+import {
+  buildGatewaySessionDeleteUrl,
+  parseHttpOrigin,
+} from "@pymthouse/builder-sdk/config.js";
 
 const apiKey = process.env.PMTH_API_KEY?.trim();
-const facadeUrl = (process.env.DASHBOARD_ORIGIN ?? "http://localhost:3002").replace(/\/$/, "");
+const facadeOrigin = parseHttpOrigin(process.env.DASHBOARD_ORIGIN, "http://localhost:3002");
 const modelId = process.env.GATEWAY_MODEL_ID?.trim() ?? "streamdiffusion-sdxl";
 const discoveryUrl = process.env.GATEWAY_DISCOVERY_URL?.trim();
 
@@ -44,21 +29,21 @@ if (!apiKey?.startsWith("pmth_")) {
 }
 
 const exchanged = await exchangeApiKeyForSigner({
-  facadeUrl,
+  facadeUrl: facadeOrigin,
   apiKey,
   scope: "sign:job",
   clientId: process.env.PYMTHOUSE_PUBLIC_CLIENT_ID?.trim(),
 });
 
 const signerToken = exchanged.access_token;
-console.log("Signer token (truncated):", signerToken.slice(0, 20) + "…");
+console.log("Signer session acquired");
 
 const body = { modelId };
 if (discoveryUrl) {
   body.discoveryUrl = discoveryUrl;
 }
 
-const startResponse = await fetch(`${facadeUrl}/api/gateway/sessions`, {
+const startResponse = await fetch(`${facadeOrigin}/api/gateway/sessions`, {
   method: "POST",
   headers: {
     Authorization: `Bearer ${signerToken}`,
@@ -68,18 +53,23 @@ const startResponse = await fetch(`${facadeUrl}/api/gateway/sessions`, {
   body: JSON.stringify(body),
 });
 
-const startBody = await startResponse.json().catch(() => ({}));
 console.log("Start session status:", startResponse.status);
-console.log(JSON.stringify(startBody, null, 2));
 
 if (!startResponse.ok) {
   process.exit(1);
 }
 
-const sessionId = startBody.sessionId;
-if (isSafePathSegment(sessionId)) {
-  await fetch(`${facadeUrl}/api/gateway/sessions/${encodeURIComponent(sessionId)}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${signerToken}` },
-  }).catch(() => undefined);
+const startBody = await startResponse.json().catch(() => ({}));
+if (typeof startBody.sessionId === "string") {
+  try {
+    const deleteUrl = buildGatewaySessionDeleteUrl(facadeOrigin, startBody.sessionId);
+    await fetch(deleteUrl, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${signerToken}` },
+    }).catch(() => undefined);
+  } catch {
+    // Session id from server failed local validation — skip cleanup.
+  }
 }
+
+console.log("Gateway session smoke test completed");

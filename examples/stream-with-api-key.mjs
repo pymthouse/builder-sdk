@@ -13,9 +13,10 @@
  */
 
 import { PmtHouseClient } from "@pymthouse/builder-sdk";
+import { parseHttpOrigin } from "@pymthouse/builder-sdk/config.js";
 
 const apiKey = process.env.PMTH_API_KEY?.trim();
-const facadeUrl = (process.env.DASHBOARD_ORIGIN ?? "http://localhost:3002").replace(/\/$/, "");
+const facadeUrl = parseHttpOrigin(process.env.DASHBOARD_ORIGIN, "http://localhost:3002");
 const publicClientId = process.env.PYMTHOUSE_PUBLIC_CLIENT_ID?.trim();
 const discoveryUrl =
   process.env.DISCOVERY_URL?.trim() ||
@@ -48,9 +49,7 @@ const session = await client.exchangeApiKeyForSignerSession({
   scope: "sign:job",
 });
 
-console.log("Signer session minted (opaque bearer, truncated):");
-console.log(session.access_token.slice(0, 20) + "…");
-console.log("expires_in:", session.expires_in);
+console.log("Signer session minted");
 
 const discoveryResponse = await fetch(discoveryUrl, {
   headers: {
@@ -60,10 +59,9 @@ const discoveryResponse = await fetch(discoveryUrl, {
 });
 
 console.log("Discovery status:", discoveryResponse.status);
-if (discoveryResponse.ok) {
-  const payload = await discoveryResponse.json();
-  const count = Array.isArray(payload) ? payload.length : Object.keys(payload).length;
-  console.log("Discovery entries:", count);
-} else {
-  console.error(await discoveryResponse.text());
+if (!discoveryResponse.ok) {
+  console.error("Discovery request failed");
+  process.exit(1);
 }
+
+console.log("Discovery request completed");

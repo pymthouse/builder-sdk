@@ -1,15 +1,19 @@
+function isAsciiWhitespace(code: number): boolean {
+  return code <= 32;
+}
+
 function bearerTokenStart(header: string): number {
   const prefix = "bearer";
   if (header.length < prefix.length) {
     return -1;
   }
   for (let i = 0; i < prefix.length; i++) {
-    if ((header.charCodeAt(i) | 32) !== prefix.charCodeAt(i)) {
+    if (((header.codePointAt(i) ?? 0) | 32) !== prefix.codePointAt(i)!) {
       return -1;
     }
   }
   let start = prefix.length;
-  while (start < header.length && header.charCodeAt(start) <= 32) {
+  while (start < header.length && isAsciiWhitespace(header.codePointAt(start) ?? 0)) {
     start++;
   }
   return start < header.length ? start : -1;
@@ -25,7 +29,7 @@ export function extractBearerToken(request: Request): string | null {
     return null;
   }
   let end = header.length;
-  while (end > start && header.charCodeAt(end - 1) <= 32) {
+  while (end > start && isAsciiWhitespace(header.codePointAt(end - 1) ?? 0)) {
     end--;
   }
   return header.slice(start, end);

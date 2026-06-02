@@ -170,7 +170,8 @@ export async function subscribeTrickleSegment(
     throw new Error("Trickle subscribe response missing body stream");
   }
   const contentType = response.headers.get("Content-Type") ?? record.mimeType;
-  const segmentSeq = parseTrickleIntHeader(response.headers, "Lp-Trickle-Seq") ?? (seq >= 0 ? seq : 0);
+  const segmentSeq =
+    parseTrickleIntHeader(response.headers, "Lp-Trickle-Seq") ?? Math.max(seq, 0);
   const latestSeq =
     parseTrickleIntHeader(response.headers, "Lp-Trickle-Latest") ?? segmentSeq;
   return { data, contentType, segmentSeq, nextSeq: segmentSeq + 1, latestSeq };

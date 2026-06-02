@@ -13,6 +13,16 @@ const insecureHttpsAgent = new https.Agent({
   rejectUnauthorized: false,
 });
 
+function encodeRequestBody(raw: InsecureFetchInit["body"]): Buffer | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (raw instanceof Buffer) {
+    return raw;
+  }
+  return Buffer.from(raw);
+}
+
 export async function insecureFetch(
   url: string,
   init: InsecureFetchInit = {},
@@ -22,12 +32,8 @@ export async function insecureFetch(
   const lib = isHttps ? https : http;
   const timeoutMs = init.timeoutMs ?? 60_000;
 
-  const body =
-    init.body === undefined
-      ? undefined
-      : init.body instanceof Buffer
-        ? init.body
-        : Buffer.from(init.body);
+  const body = encodeRequestBody(init.body);
+  const defaultMethod = body === undefined ? "GET" : "POST";
 
   return new Promise((resolve, reject) => {
     const headers = { ...init.headers };
@@ -38,7 +44,7 @@ export async function insecureFetch(
     const req = lib.request(
       parsed,
       {
-        method: init.method ?? (body !== undefined ? "POST" : "GET"),
+        method: init.method ?? defaultMethod,
         headers,
         agent: isHttps ? insecureHttpsAgent : undefined,
         rejectUnauthorized: false,

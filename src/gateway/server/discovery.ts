@@ -69,9 +69,19 @@ function resolveDiscoveryEndpoint(input: DiscoverOrchestratorsInput): {
   throw new Error("discovery requires orchestratorUrl, discoveryUrl, or signerUrl");
 }
 
+function pickDiscoveryAddress(record: Record<string, unknown>): string | undefined {
+  if (typeof record.address === "string") {
+    return record.address;
+  }
+  if (typeof record.url === "string") {
+    return record.url;
+  }
+  return undefined;
+}
+
 function parseDiscoveryList(data: unknown): string[] {
   if (!Array.isArray(data)) {
-    throw new Error(`Discovery response must be a JSON list, got ${typeof data}`);
+    throw new TypeError(`Discovery response must be a JSON list, got ${typeof data}`);
   }
   const urls: string[] = [];
   for (const item of data) {
@@ -79,13 +89,7 @@ function parseDiscoveryList(data: unknown): string[] {
       continue;
     }
     const record = item as Record<string, unknown>;
-    const address =
-      typeof record.address === "string"
-        ? record.address
-        : typeof record.url === "string"
-          ? record.url
-          : undefined;
-    const trimmed = address?.trim();
+    const trimmed = pickDiscoveryAddress(record)?.trim();
     if (trimmed) {
       urls.push(trimmed);
     }

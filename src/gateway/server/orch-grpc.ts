@@ -95,5 +95,5 @@ export function serializeOrchestratorInfo(info: OrchestratorInfoMessage): Buffer
 
   // @grpc/proto-loader returns plain objects without SerializeToString.
   const { root } = loadProtoRoot();
-  return Buffer.from(root.net.OrchestratorInfo.serialize(info as Record<string, unknown>));
+  return Buffer.from(root.net.OrchestratorInfo.serialize({ ...info }));
 }

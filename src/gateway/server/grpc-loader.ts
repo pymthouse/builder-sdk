@@ -52,14 +52,16 @@ function requireGrpcPeer<T>(label: string, load: () => T): T {
 }
 
 export function loadProtoRoot(): { grpc: GrpcModule; root: ProtoRoot } {
-  const grpc = requireGrpcPeer("@grpc/grpc-js", () => createRequire(import.meta.url)("@grpc/grpc-js") as GrpcModule);
+  const grpc = requireGrpcPeer("@grpc/grpc-js", () =>
+    createRequire(import.meta.url)("@grpc/grpc-js"),
+  ) as GrpcModule;
   if (cachedRoot) {
     return { grpc, root: cachedRoot };
   }
 
   const protoLoader = requireGrpcPeer("@grpc/proto-loader", () =>
-    createRequire(import.meta.url)("@grpc/proto-loader") as ProtoLoaderModule,
-  );
+    createRequire(import.meta.url)("@grpc/proto-loader"),
+  ) as ProtoLoaderModule;
 
   const packageDefinition = protoLoader.loadSync(protoPath(), {
     keepCase: true,

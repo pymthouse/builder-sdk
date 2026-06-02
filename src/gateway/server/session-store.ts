@@ -26,9 +26,7 @@ function sessionsMap(): Map<string, GatewaySessionRecord> {
   const globalStore = globalThis as typeof globalThis & {
     [SESSIONS_GLOBAL_KEY]?: Map<string, GatewaySessionRecord>;
   };
-  if (!globalStore[SESSIONS_GLOBAL_KEY]) {
-    globalStore[SESSIONS_GLOBAL_KEY] = new Map();
-  }
+  globalStore[SESSIONS_GLOBAL_KEY] ??= new Map();
   return globalStore[SESSIONS_GLOBAL_KEY];
 }
 

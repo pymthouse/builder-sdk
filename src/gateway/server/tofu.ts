@@ -17,24 +17,23 @@ function isIpAddress(host: string): boolean {
   return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":");
 }
 
-function pickCertAuthority(cert: tls.PeerCertificate): string {
-  const san = cert.subjectaltname?.split(", ").map((entry) => {
-    const [typ, val] = entry.split(":");
-    return { typ, val };
-  });
-  if (san) {
-    for (const entry of san) {
-      if (entry.typ === "DNS" && entry.val) {
-        return entry.val;
-      }
-    }
-    for (const entry of san) {
-      if (entry.typ === "IP" && entry.val) {
-        return entry.val;
-      }
+function authorityFromSan(
+  san: { typ?: string; val?: string }[],
+): string | undefined {
+  for (const entry of san) {
+    if (entry.typ === "DNS" && entry.val) {
+      return entry.val;
     }
   }
-  const cn = cert.subject?.CN;
+  for (const entry of san) {
+    if (entry.typ === "IP" && entry.val) {
+      return entry.val;
+    }
+  }
+  return undefined;
+}
+
+function authorityFromSubject(cn: string | string[] | undefined): string {
   if (typeof cn === "string") {
     return cn;
   }
@@ -42,6 +41,20 @@ function pickCertAuthority(cert: tls.PeerCertificate): string {
     return cn[0] ?? "";
   }
   return "";
+}
+
+function pickCertAuthority(cert: tls.PeerCertificate): string {
+  const san = cert.subjectaltname?.split(", ").map((entry) => {
+    const [typ, val] = entry.split(":");
+    return { typ, val };
+  });
+  if (san) {
+    const fromSan = authorityFromSan(san);
+    if (fromSan) {
+      return fromSan;
+    }
+  }
+  return authorityFromSubject(cert.subject?.CN);
 }
 
 async function fetchTofuRootCert(target: string): Promise<{ rootPem: Buffer; authority: string }> {

@@ -5,6 +5,8 @@ import { PmtHouseClient } from "../src/client.js";
 import type { FetchLike } from "../src/types.js";
 import { resolveFetchInputUrl } from "./fetch-url.js";
 
+type FetchInput = string | URL | Request;
+
 function makeClient(fetchImpl: FetchLike) {
   return new PmtHouseClient({
     issuerUrl: "https://issuer.example/api/v1/oidc",
@@ -18,7 +20,7 @@ function makeClient(fetchImpl: FetchLike) {
 describe("PmtHouseClient billing extensions", () => {
   it("getUsage passes include=retail", async () => {
     const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+    const fetchMock = vi.fn(async (input: FetchInput) => {
       captured.url = resolveFetchInputUrl(input);
       return Response.json({
         clientId: "app_x",
@@ -53,7 +55,7 @@ describe("PmtHouseClient billing extensions", () => {
 
   it("getUsageBalance calls usage/balance endpoint", async () => {
     const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+    const fetchMock = vi.fn(async (input: FetchInput) => {
       captured.url = resolveFetchInputUrl(input);
       return Response.json({
         externalUserId: "user-1",
@@ -74,7 +76,7 @@ describe("PmtHouseClient billing extensions", () => {
 
   it("grantUserAllowance POSTs to allowances endpoint", async () => {
     const captured: { url?: string; body?: string } = {};
-    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
       captured.url = resolveFetchInputUrl(input);
       captured.body = typeof init?.body === "string" ? init.body : undefined;
       return Response.json({
@@ -96,10 +98,11 @@ describe("PmtHouseClient billing extensions", () => {
     });
   });
 
-  it("grantUserCredits delegates to allowances (deprecated alias)", async () => {
-    const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+  it("grantUserAllowance maps legacy credit fields", async () => {
+    const captured: { url?: string; body?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
       captured.url = resolveFetchInputUrl(input);
+      captured.body = typeof init?.body === "string" ? init.body : undefined;
       return Response.json({
         externalUserId: "user-1",
         balanceUsdMicros: "2000000",
@@ -107,8 +110,9 @@ describe("PmtHouseClient billing extensions", () => {
       });
     }) as unknown as FetchLike;
 
-    await makeClient(fetchMock).grantUserCredits("user-1", {
+    await makeClient(fetchMock).grantUserAllowance("user-1", {
       amountUsdMicros: "500000",
+      source: "manual",
     });
     expect(captured.url).toContain("/allowances");
   });

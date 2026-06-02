@@ -56,9 +56,8 @@ import type {
   UsageBalanceResponse,
   UserAllowanceGrantInput,
   UserAllowancesResponse,
-  UserCreditGrantInput,
-  UserCreditsResponse,
   UserSubscriptionResponse,
+  GrantSource,
 } from "./types.js";
 import {
   ingestSignedTicket,
@@ -547,7 +546,7 @@ export class PmtHouseClient {
   /**
    * @deprecated Removed from PymtHouse — use {@link getUsageBalance} or {@link getUserAllowances}.
    */
-  async getUserCredits(externalUserId: string): Promise<UserCreditsResponse> {
+  async getUserCredits(externalUserId: string): Promise<UsageBalanceResponse> {
     return this.getUsageBalance(externalUserId);
   }
 
@@ -556,7 +555,7 @@ export class PmtHouseClient {
    */
   async grantUserCredits(
     externalUserId: string,
-    input: UserCreditGrantInput,
+    input: { amountUsdMicros: string; source?: GrantSource; featureKey?: string },
   ): Promise<UsageBalanceResponse & { grantedUsdMicros?: string; featureKey?: string }> {
     const result = await this.grantUserAllowance(externalUserId, {
       amountUsdMicros: input.amountUsdMicros,

@@ -1,4 +1,12 @@
-import { stripOidcPathSuffix, stripTrailingSlashes } from "./string-utils.js";
+import {
+  buildGatewaySessionDeleteUrl,
+  isSafePathSegment,
+  parseHttpOrigin,
+  stripOidcPathSuffix,
+  stripTrailingSlashes,
+} from "./string-utils.js";
+
+export { buildGatewaySessionDeleteUrl, isSafePathSegment, parseHttpOrigin };
 
 /** Operator hint when Builder / Usage cannot run. */
 export const PYMTHOUSE_NOT_CONFIGURED_MESSAGE =

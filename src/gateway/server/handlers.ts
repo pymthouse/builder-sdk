@@ -220,7 +220,8 @@ export function createGatewaySubscribeSegmentHandler(config: GatewayServerConfig
 
     const url = new URL(request.url);
     const seqParam = url.searchParams.get("seq");
-    const seq = seqParam !== null ? Number.parseInt(seqParam, 10) : record.subscribeSeq;
+    const seq =
+      seqParam === null ? record.subscribeSeq : Number.parseInt(seqParam, 10);
 
     try {
       const segment = await subscribeTrickleSegment(record, seq);
