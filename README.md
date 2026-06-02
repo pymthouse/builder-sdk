@@ -182,6 +182,16 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 
 **Routing:** `getSignerRouting()` returns `signerApiUrl`, `remoteDmzUrl`, `meteringMode`, and pattern hints for hosted vs platform-ingest vs BYO OpenMeter.
 
+**Allowances (OpenMeter):** Trial and manual USD micros allowance use OpenMeter entitlements — not a Postgres wei ledger.
+
+| Method | SDK | HTTP |
+|--------|-----|------|
+| Read balance | `getUsageBalance(externalUserId)` | `GET .../usage/balance?externalUserId=` |
+| Read allowance detail | `getUserAllowances(externalUserId)` | `GET .../users/{id}/allowances` |
+| Top-up grant | `grantUserAllowance(externalUserId, { amountUsdMicros, source })` | `POST .../users/{id}/allowances` |
+
+`grantUserCredits` / `getUserCredits` remain as **deprecated** aliases that call the allowances / balance endpoints. `POST .../users/{id}/credits` was removed from PymtHouse (the route may still re-export allowances temporarily).
+
 **Plan pricing helpers:** `markupPercentToRetailRateUsd`, `applyRetailRateToNetworkMicros` (exported from the main entry).
 
 ## Usage API: pipeline/model grouping

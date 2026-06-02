@@ -90,7 +90,7 @@ export interface TokenExchangeResponse {
 export interface UsageQueryInput {
   startDate?: string;
   endDate?: string;
-  groupBy?: "none" | "user" | "pipeline_model";
+  groupBy?: "none" | "user" | "pipeline_model" | "daily_pipeline";
   userId?: string;
   gatewayRequestId?: string;
   /** When true, sends `include=retail` for estimated end-user billable amounts. */
@@ -134,6 +134,18 @@ export interface UsageByPipelineModelRow {
   retailRateUsd?: string;
 }
 
+/** One UTC day bucket from Usage API `groupBy=daily_pipeline` (requires `userId`). */
+export interface UsageDailyPipelineRow {
+  pipeline: string;
+  modelId: string;
+  date: string;
+  requestCount: number;
+  currency?: string;
+  networkFeeUsdMicros: string;
+  ownerChargeUsdMicros?: string;
+  endUserBillableUsdMicros?: string;
+}
+
 export interface UsageApiResponse {
   clientId: string;
   source?: "openmeter" | "postgres";
@@ -144,6 +156,7 @@ export interface UsageApiResponse {
   totals: UsageTotals;
   byUser?: UsageByUserRow[];
   byPipelineModel?: UsageByPipelineModelRow[];
+  byDailyPipeline?: UsageDailyPipelineRow[];
 }
 
 export type BillingSyncStatus = "not_applicable" | "pending" | "synced" | "error";
@@ -180,6 +193,7 @@ export interface BillingProduct {
   priceAmount: string;
   priceCurrency: string;
   isNetworkDefault: boolean;
+  isStarterDefault: boolean;
   allowance: AllowancePolicy;
   defaultRetailRateUsd: string | null;
   capabilities: CapabilityPriceRule[];
@@ -204,8 +218,23 @@ export interface SignedTicketIngestResult {
   ingested: boolean;
   duplicate: boolean;
   source: "openmeter" | "disabled";
-  ledgerWritten?: boolean;
 }
+
+/** OpenMeter entitlement balance from `GET .../usage/balance`. */
+export interface UsageBalanceResponse {
+  externalUserId: string;
+  balanceUsdMicros: string;
+  consumedUsdMicros: string;
+  lifetimeGrantedUsdMicros: string;
+  hasAccess: boolean;
+  remainingUsdMicros?: string;
+}
+
+/** @deprecated Use {@link UsageBalanceResponse}. */
+export type UserCreditsResponse = UsageBalanceResponse;
+
+/** @deprecated Use {@link UserAllowanceGrantInput}. */
+export type UserCreditGrantInput = UserAllowanceGrantInput;
 
 export interface SignerRoutingConfig {
   signerApiUrl: string;
@@ -338,6 +367,7 @@ export interface MeScopeUsagePayload {
     ownerChargeUsdMicros: string;
     endUserBillableUsdMicros: string;
     pipelineModels: UsageByPipelineModelFiatRow[];
+    dailyByPipeline?: UsageDailyPipelineRow[];
   };
 }
 

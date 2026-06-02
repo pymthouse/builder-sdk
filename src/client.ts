@@ -53,8 +53,11 @@ import type {
   SignedTicketIngestResult,
   UsageApiResponse,
   UsageQueryInput,
+  UsageBalanceResponse,
   UserAllowanceGrantInput,
   UserAllowancesResponse,
+  UserCreditGrantInput,
+  UserCreditsResponse,
   UserSubscriptionResponse,
 } from "./types.js";
 import {
@@ -505,6 +508,16 @@ export class PmtHouseClient {
     );
   }
 
+  async getUsageBalance(externalUserId: string): Promise<UsageBalanceResponse> {
+    const url = new URL(`${this.getAppsBaseUrl()}/usage/balance`);
+    url.searchParams.set("externalUserId", externalUserId);
+    return this.requestJson<UsageBalanceResponse>(url.toString(), {
+      method: "GET",
+      headers: this.builderHeaders(),
+      cache: "no-store",
+    });
+  }
+
   async getUserAllowances(externalUserId: string): Promise<UserAllowancesResponse> {
     return this.requestJson<UserAllowancesResponse>(
       `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/allowances`,
@@ -529,6 +542,50 @@ export class PmtHouseClient {
         cache: "no-store",
       },
     );
+  }
+
+  /**
+   * @deprecated Removed from PymtHouse — use {@link getUsageBalance} or {@link getUserAllowances}.
+   */
+  async getUserCredits(externalUserId: string): Promise<UserCreditsResponse> {
+    return this.getUsageBalance(externalUserId);
+  }
+
+  /**
+   * @deprecated Removed from PymtHouse — use {@link grantUserAllowance} (`POST .../allowances`).
+   */
+  async grantUserCredits(
+    externalUserId: string,
+    input: UserCreditGrantInput,
+  ): Promise<UsageBalanceResponse & { grantedUsdMicros?: string; featureKey?: string }> {
+    const result = await this.grantUserAllowance(externalUserId, {
+      amountUsdMicros: input.amountUsdMicros,
+      source: input.source ?? "manual",
+      featureKey: input.featureKey,
+    });
+    const flat = result as UserAllowancesResponse & {
+      balanceUsdMicros?: string;
+      consumedUsdMicros?: string;
+      lifetimeGrantedUsdMicros?: string;
+      hasAccess?: boolean;
+      grantedUsdMicros?: string;
+      featureKey?: string;
+    };
+    const nested = result.allowances;
+    return {
+      externalUserId: result.externalUserId,
+      balanceUsdMicros:
+        flat.balanceUsdMicros ?? nested?.balanceUsdMicros ?? "0",
+      consumedUsdMicros:
+        flat.consumedUsdMicros ?? nested?.consumedUsdMicros ?? "0",
+      lifetimeGrantedUsdMicros:
+        flat.lifetimeGrantedUsdMicros ?? nested?.lifetimeGrantedUsdMicros ?? "0",
+      hasAccess: flat.hasAccess ?? nested?.hasAccess ?? false,
+      remainingUsdMicros:
+        flat.balanceUsdMicros ?? nested?.balanceUsdMicros,
+      grantedUsdMicros: flat.grantedUsdMicros,
+      featureKey: flat.featureKey,
+    };
   }
 
   async getUserSubscription(externalUserId: string): Promise<UserSubscriptionResponse> {
@@ -566,7 +623,18 @@ export class PmtHouseClient {
         }),
       ),
     );
-    return buildMeScopeUsagePayload(usageByUser, input.externalUserId, usagePipelineModels);
+    const usageDaily = await this.getUsage({
+      startDate: input.startDate,
+      endDate: input.endDate,
+      groupBy: "daily_pipeline",
+      userId: input.externalUserId,
+    });
+    return buildMeScopeUsagePayload(
+      usageByUser,
+      input.externalUserId,
+      usagePipelineModels,
+      usageDaily,
+    );
   }
 
   async getAppManifest(opts?: {

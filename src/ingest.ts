@@ -94,7 +94,6 @@ export async function ingestSignedTicket(
     ingested: Boolean(body.ingested),
     duplicate: Boolean(body.duplicate),
     source: body.source === "openmeter" ? "openmeter" : "disabled",
-    ledgerWritten: body.ledgerWritten === true,
   };
 }
 
@@ -137,7 +136,6 @@ export async function ingestSignedTicketsBatch(
         ingested: Boolean(row.ingested),
         duplicate: Boolean(row.duplicate),
         source: row.source === "openmeter" ? "openmeter" : "disabled",
-        ledgerWritten: row.ledgerWritten === true,
       };
     }),
   };
