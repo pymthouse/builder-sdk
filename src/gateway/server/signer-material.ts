@@ -1,4 +1,4 @@
-import { httpOrigin, insecureFetch, readJsonResponse } from "./http-insecure.js";
+import { httpOrigin, insecureFetch, readJsonResponse, signerRequestUrl } from "./http-insecure.js";
 
 export type SignerMaterial = {
   address: string;
@@ -28,7 +28,7 @@ export async function getSignerMaterial(
     return cached;
   }
 
-  const url = `${httpOrigin(signerUrl)}/sign-orchestrator-info`;
+  const url = signerRequestUrl(signerUrl, "sign-orchestrator-info");
   const response = await insecureFetch(url, {
     method: "POST",
     headers: {

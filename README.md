@@ -108,6 +108,10 @@ Auth flow (same signer bearer as Python `livepeer-python-gateway`):
 
 Enable relay on the dashboard with `GATEWAY_ENABLED=1` and `NEXT_PUBLIC_GATEWAY_ENABLED=1`.
 
+When the dashboard runs on a different port than pymthouse (e.g. `:3000` vs `:3001`), set
+`GATEWAY_SIGNER_FROM_REQUEST_ORIGIN=1` so the gateway server calls same-origin `/api/signer`
+(proxied to `PYMTHOUSE_SIGNER_URL` upstream) instead of hard-coding `localhost:3001`.
+
 See `examples/gateway-session-smoke.mjs` for a headless session start test.
 
 Integrators can use the higher-level workflow helpers:

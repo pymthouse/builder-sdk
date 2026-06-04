@@ -115,3 +115,16 @@ export function httpOrigin(url: string): string {
   const parsed = new URL(url.includes("://") ? url : `https://${url}`);
   return `${parsed.protocol}//${parsed.host}`;
 }
+
+/**
+ * Build a signer HTTP URL. When the base ends with `/api/signer`, append the
+ * endpoint under that prefix. Otherwise use origin-root paths (pymthouse rewrites).
+ */
+export function signerRequestUrl(signerBase: string, endpoint: string): string {
+  const trimmed = signerBase.trim().replace(/\/+$/, "");
+  const path = endpoint.replace(/^\/+/, "");
+  if (trimmed.endsWith("/api/signer")) {
+    return `${trimmed}/${path}`;
+  }
+  return `${httpOrigin(trimmed)}/${path}`;
+}

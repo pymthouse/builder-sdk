@@ -1,4 +1,19 @@
 import type { GatewayServerConfig } from "./config.js";
+
+export type GatewayConfigSource =
+  | GatewayServerConfig
+  | null
+  | ((request: Request) => GatewayServerConfig | null);
+
+function resolveGatewayConfig(
+  source: GatewayConfigSource,
+  request: Request,
+): GatewayServerConfig | null {
+  if (typeof source === "function") {
+    return source(request);
+  }
+  return source;
+}
 import {
   extractBearerToken,
   disabledResponse,
@@ -130,9 +145,10 @@ async function startGatewaySessionRecord(
   }
 }
 
-export function createGatewayStartSessionHandler(config: GatewayServerConfig | null) {
+export function createGatewayStartSessionHandler(config: GatewayConfigSource) {
   return async (request: Request): Promise<Response> => {
-    if (!config) {
+    const resolved = resolveGatewayConfig(config, request);
+    if (!resolved) {
       return disabledResponse();
     }
     const token = extractBearerToken(request);
@@ -140,20 +156,21 @@ export function createGatewayStartSessionHandler(config: GatewayServerConfig | n
       return unauthorizedResponse();
     }
 
-    const body = await parseStartGatewaySessionRequest(request, config);
+    const body = await parseStartGatewaySessionRequest(request, resolved);
     if (body instanceof Response) {
       return body;
     }
-    return startGatewaySessionRecord(config, token, body);
+    return startGatewaySessionRecord(resolved, token, body);
   };
 }
 
-export function createGatewayPublishSegmentHandler(config: GatewayServerConfig | null) {
+export function createGatewayPublishSegmentHandler(config: GatewayConfigSource) {
   return async (
     request: Request,
     context: { params: Promise<{ id: string; seq: string }> },
   ): Promise<Response> => {
-    if (!config) {
+    const resolved = resolveGatewayConfig(config, request);
+    if (!resolved) {
       return disabledResponse();
     }
     const token = extractBearerToken(request);
@@ -193,12 +210,13 @@ export function createGatewayPublishSegmentHandler(config: GatewayServerConfig |
   };
 }
 
-export function createGatewaySubscribeSegmentHandler(config: GatewayServerConfig | null) {
+export function createGatewaySubscribeSegmentHandler(config: GatewayConfigSource) {
   return async (
     request: Request,
     context: { params: Promise<{ id: string }> },
   ): Promise<Response> => {
-    if (!config) {
+    const resolved = resolveGatewayConfig(config, request);
+    if (!resolved) {
       return disabledResponse();
     }
     const token = extractBearerToken(request);
@@ -254,12 +272,13 @@ export function createGatewaySubscribeSegmentHandler(config: GatewayServerConfig
   };
 }
 
-export function createGatewayStopSessionHandler(config: GatewayServerConfig | null) {
+export function createGatewayStopSessionHandler(config: GatewayConfigSource) {
   return async (
     request: Request,
     context: { params: Promise<{ id: string }> },
   ): Promise<Response> => {
-    if (!config) {
+    const resolved = resolveGatewayConfig(config, request);
+    if (!resolved) {
       return disabledResponse();
     }
     const token = extractBearerToken(request);

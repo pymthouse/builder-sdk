@@ -1,5 +1,5 @@
 import type { OrchestratorInfoMessage } from "./grpc-loader.js";
-import { httpOrigin, insecureFetch, readJsonResponse } from "./http-insecure.js";
+import { httpOrigin, insecureFetch, readJsonResponse, signerRequestUrl } from "./http-insecure.js";
 import { getOrchestratorInfo, serializeOrchestratorInfo } from "./orch-grpc.js";
 import { encodeCapabilitiesBase64 } from "./grpc-loader.js";
 
@@ -80,7 +80,7 @@ export class PaymentSession {
   }
 
   private async requestPayment(): Promise<PaymentHeaders> {
-    const url = `${httpOrigin(this.signerUrl)}/generate-live-payment`;
+    const url = signerRequestUrl(this.signerUrl, "generate-live-payment");
     const orchB64 = serializeOrchestratorInfo(this.orchestratorInfo).toString("base64");
     const capsB64 = encodeCapabilitiesBase64(this.modelId);
 

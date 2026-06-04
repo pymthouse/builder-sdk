@@ -1,5 +1,5 @@
 import { appendCapabilityQuery } from "./capabilities.js";
-import { httpOrigin, insecureFetch, readJsonResponse } from "./http-insecure.js";
+import { httpOrigin, insecureFetch, readJsonResponse, signerRequestUrl } from "./http-insecure.js";
 import { DEFAULT_DISCOVERY_TIMEOUT_MS } from "../types.js";
 
 const DISCOVERY_SERVICE_RAW_PATH = "/v1/discovery/raw";
@@ -60,7 +60,7 @@ function resolveDiscoveryEndpoint(input: DiscoverOrchestratorsInput): {
 
   if (input.signerUrl?.trim()) {
     const url = appendCapabilityQuery(
-      `${httpOrigin(input.signerUrl)}/discover-orchestrators`,
+      signerRequestUrl(input.signerUrl, "discover-orchestrators"),
       input.modelId,
     );
     return { url, headers: input.signerHeaders, discoveryService: false };
