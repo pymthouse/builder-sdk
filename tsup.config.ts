@@ -13,6 +13,11 @@ export default defineConfig({
     verify: "src/verify.ts",
     "signer/server": "src/signer/server.ts",
     "signer/webhook": "src/signer/webhook/index.ts",
+    "signer/webhook/adapters/api-key":
+      "src/signer/webhook/adapters/api-key.ts",
+    "signer/webhook/adapters/composite":
+      "src/signer/webhook/adapters/composite.ts",
+    "signer/webhook/adapters/oidc": "src/signer/webhook/adapters/oidc.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

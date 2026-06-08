@@ -32,6 +32,12 @@ export {
   type OidcEndUserAuthConfig,
 } from "./oidc-verifier.js";
 export {
+  createApiKeyEndUserVerifier,
+  type ApiKeyEndUserVerifierConfig,
+  type ApiKeyResolveResult,
+} from "./api-key-verifier.js";
+export { createFirstMatchEndUserVerifier } from "./composite-verifier.js";
+export {
   createOAuth1EndUserVerifier,
   type OAuth1EndUserAuthConfig,
 } from "./oauth1-verifier.js";

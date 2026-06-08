@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { PmtHouseError } from "../../errors.js";
 import { authorizationFromWebhookPayload } from "./payload.js";
 import type { PaymentWebhookRequest, PaymentWebhookResponse } from "./types.js";
@@ -25,16 +26,33 @@ export type RemoteSignerWebhookConfig = {
   afterVerify?: (context: WebhookAuthorizeContext) => Promise<void>;
 };
 
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const aBuffer = Buffer.from(a);
+  const bBuffer = Buffer.from(b);
+  if (aBuffer.length !== bBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(aBuffer, bBuffer);
+}
+
 export function authenticateWebhookCaller(request: Request, secret: string): boolean {
   if (!secret.trim()) {
     return false;
   }
+  const trimmed = secret.trim();
   const auth = request.headers.get("authorization")?.trim() ?? "";
-  if (auth === `Bearer ${secret}`) {
+  if (auth === `Bearer ${trimmed}`) {
     return true;
   }
   const apiKey = request.headers.get("x-api-key")?.trim() ?? "";
-  return apiKey === secret;
+  if (apiKey && timingSafeEqualStrings(apiKey, trimmed)) {
+    return true;
+  }
+  const legacySecret = request.headers.get("x-webhook-secret")?.trim() ?? "";
+  if (legacySecret && timingSafeEqualStrings(legacySecret, trimmed)) {
+    return true;
+  }
+  return false;
 }
 
 function paymentWebhookJson(

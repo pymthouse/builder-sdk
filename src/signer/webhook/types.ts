@@ -21,6 +21,8 @@ export type PaymentWebhookRequest = {
   authorization?: string;
   headers?: Record<string, string[]>;
   state?: unknown;
+  /** GPU tier forwarded by go-livepeer when available (e.g. `4090`, `h100`). */
+  gpu?: string;
 };
 
 export type PaymentWebhookResponse = {

@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   authenticateWebhookCaller,
   authorizationFromWebhookPayload,
+  createApiKeyEndUserVerifier,
+  createFirstMatchEndUserVerifier,
   createOAuth1EndUserVerifier,
   createOidcRemoteSignerWebhookConfig,
   handleRemoteSignerAuthorize,
@@ -274,6 +276,143 @@ describe("handleRemoteSignerRefreshJwks", () => {
       jwtAudience: "livepeer",
     });
     expect(response.status).toBe(401);
+  });
+});
+
+describe("authenticateWebhookCaller", () => {
+  it("accepts Authorization Bearer webhook secret", () => {
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: { Authorization: "Bearer signer-secret" },
+    });
+    expect(authenticateWebhookCaller(request, "signer-secret")).toBe(true);
+  });
+
+  it("accepts x-api-key webhook secret", () => {
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: { "x-api-key": "signer-secret" },
+    });
+    expect(authenticateWebhookCaller(request, "signer-secret")).toBe(true);
+  });
+
+  it("accepts legacy x-webhook-secret header (Daydream pipelines)", () => {
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: { "x-webhook-secret": "signer-secret" },
+    });
+    expect(authenticateWebhookCaller(request, "signer-secret")).toBe(true);
+  });
+
+  it("rejects mismatched legacy x-webhook-secret", () => {
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: { "x-webhook-secret": "wrong-secret" },
+    });
+    expect(authenticateWebhookCaller(request, "signer-secret")).toBe(false);
+  });
+});
+
+describe("createApiKeyEndUserVerifier", () => {
+  it("resolves sk_ keys to Clerk identity dimensions", async () => {
+    const verifier = createApiKeyEndUserVerifier({
+      issuer: "https://api.daydream.live",
+      resolveApiKey: async (apiKey) => {
+        if (apiKey === "sk_live_test") {
+          return { userId: "user_clerk_123" };
+        }
+        return null;
+      },
+    });
+
+    const verified = await verifier.verify({
+      authorization: "Bearer sk_live_test",
+      payload: { headers: { Authorization: ["Bearer sk_live_test"] } },
+      request: new Request("http://localhost/authorize"),
+    });
+
+    expect(verified.identity).toEqual({
+      issuer: "https://api.daydream.live",
+      client_id: "daydream-scope",
+      usage_subject: "user_clerk_123",
+      usage_subject_type: "clerk_user_id",
+    });
+    expect(verified.expiry).toBeGreaterThan(Math.trunc(Date.now() / 1000));
+  });
+
+  it("rejects invalid api key prefix", async () => {
+    const verifier = createApiKeyEndUserVerifier({
+      issuer: "https://api.daydream.live",
+      resolveApiKey: async () => ({ userId: "user-1" }),
+    });
+
+    await expect(
+      verifier.verify({
+        authorization: "Bearer lp_wrong_prefix",
+        payload: {},
+        request: new Request("http://localhost/authorize"),
+      }),
+    ).rejects.toThrow("invalid api key");
+  });
+
+  it("rejects unknown api key", async () => {
+    const verifier = createApiKeyEndUserVerifier({
+      issuer: "https://api.daydream.live",
+      resolveApiKey: async () => null,
+    });
+
+    await expect(
+      verifier.verify({
+        authorization: "Bearer sk_unknown",
+        payload: {},
+        request: new Request("http://localhost/authorize"),
+      }),
+    ).rejects.toThrow("invalid api key");
+  });
+});
+
+describe("createFirstMatchEndUserVerifier", () => {
+  it("falls back to second verifier when first rejects", async () => {
+    const verifier = createFirstMatchEndUserVerifier([
+      createApiKeyEndUserVerifier({
+        issuer: "https://api.daydream.live",
+        resolveApiKey: async () => null,
+      }),
+      createApiKeyEndUserVerifier({
+        issuer: "https://api.daydream.live",
+        resolveApiKey: async (apiKey) =>
+          apiKey === "sk_fallback" ? { userId: "user-fallback" } : null,
+      }),
+    ]);
+
+    const verified = await verifier.verify({
+      authorization: "Bearer sk_fallback",
+      payload: {},
+      request: new Request("http://localhost/authorize"),
+    });
+
+    expect(verified.identity.usage_subject).toBe("user-fallback");
+  });
+
+  it("uses first matching verifier in order", async () => {
+    const verifier = createFirstMatchEndUserVerifier([
+      createApiKeyEndUserVerifier({
+        issuer: "https://api.daydream.live",
+        resolveApiKey: async () => ({ userId: "user-primary" }),
+      }),
+      createApiKeyEndUserVerifier({
+        issuer: "https://api.daydream.live",
+        resolveApiKey: async () => ({ userId: "user-secondary" }),
+      }),
+    ]);
+
+    const verified = await verifier.verify({
+      authorization: "Bearer sk_test",
+      payload: {},
+      request: new Request("http://localhost/authorize"),
+    });
+
+    expect(verified.identity.usage_subject).toBe("user-primary");
   });
 });
 
