@@ -56,41 +56,13 @@
       "types": "./dist/signer/server.d.ts",
       "import": "./dist/signer/server.js",
       "require": "./dist/signer/server.cjs"
-    },
-    "./gateway": {
-      "types": "./dist/gateway/index.d.ts",
-      "import": "./dist/gateway/index.js",
-      "require": "./dist/gateway/index.cjs"
-    },
-    "./gateway/client": {
-      "types": "./dist/gateway/client/index.d.ts",
-      "import": "./dist/gateway/client/index.js",
-      "require": "./dist/gateway/client/index.cjs"
-    },
-    "./gateway/server": {
-      "types": "./dist/gateway/server/index.d.ts",
-      "import": "./dist/gateway/server/index.js",
-      "require": "./dist/gateway/server/index.cjs"
     }
   },
   "files": [
     "dist",
-    "gateway/proto",
     "README.md",
     "LICENSE"
   ],
-  "peerDependencies": {
-    "@grpc/grpc-js": "^1.12.0",
-    "@grpc/proto-loader": "^0.7.0"
-  },
-  "peerDependenciesMeta": {
-    "@grpc/grpc-js": {
-      "optional": true
-    },
-    "@grpc/proto-loader": {
-      "optional": true
-    }
-  },
   "sideEffects": false,
   "engines": {
     "node": ">=20"
@@ -103,7 +75,6 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "check:gateway-peers": "node scripts/check-gateway-peers.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prepack": "pnpm run build"
@@ -112,8 +83,6 @@
     "oauth4webapi": "^3.8.5"
   },
   "devDependencies": {
-    "@grpc/grpc-js": "^1.14.3",
-    "@grpc/proto-loader": "^0.8.0",
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.0",
     "eslint": "^9.18.0",

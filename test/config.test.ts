@@ -7,7 +7,6 @@ import {
   isPymthouseConfigured,
   readPymthouseEnv,
   parseHttpOrigin,
-  buildGatewaySessionDeleteUrl,
 } from "../src/config.js";
 
 describe("config", () => {
@@ -58,12 +57,6 @@ describe("config", () => {
   it("parseHttpOrigin validates facade origins", () => {
     expect(parseHttpOrigin("https://dash.example/", "http://localhost:3002")).toBe(
       "https://dash.example",
-    );
-  });
-
-  it("buildGatewaySessionDeleteUrl rejects unsafe session ids", () => {
-    expect(() => buildGatewaySessionDeleteUrl("https://dash.example", "../evil")).toThrow(
-      TypeError,
     );
   });
 });
