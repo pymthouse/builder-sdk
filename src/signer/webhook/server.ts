@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { readOidcRemoteSignerWebhookConfigFromEnv } from "./config.js";
+import { readOidcRemoteSignerWebhookConfigFromEnv } from "./adapters/oidc/config.js";
 import { routeRemoteSignerWebhookRequest, type RemoteSignerWebhookConfig } from "./authorize.js";
 
 export type RemoteSignerWebhookServerOptions = {

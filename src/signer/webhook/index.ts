@@ -24,36 +24,36 @@ export type {
   VerifiedEndUserAuth,
   WebhookAdminRoute,
 } from "./verifier.js";
-export {
-  bearerTokenFromAuthorization,
-  createOidcEndUserVerifier,
-  handleRemoteSignerRefreshJwks,
-  type OidcEndUserAuthConfig,
-} from "./oidc-verifier.js";
+export { bearerTokenFromAuthorization } from "./bearer.js";
 export {
   createApiKeyEndUserVerifier,
   type ApiKeyEndUserVerifierConfig,
   type ApiKeyResolveResult,
-} from "./api-key-verifier.js";
-export { createFirstMatchEndUserVerifier } from "./composite-verifier.js";
+} from "./adapters/api-key/index.js";
+export { createFirstMatchEndUserVerifier } from "./adapters/composite/index.js";
+export {
+  createOidcEndUserVerifier,
+  handleRemoteSignerRefreshJwks,
+  type OidcEndUserAuthConfig,
+} from "./adapters/oidc/verifier.js";
 export {
   createOAuth1EndUserVerifier,
   type OAuth1EndUserAuthConfig,
-} from "./oauth1-verifier.js";
+} from "./adapters/oauth1/index.js";
 export { authorizationFromWebhookPayload } from "./payload.js";
 export {
   createOidcRemoteSignerWebhookConfig,
   readOidcRemoteSignerWebhookConfigFromEnv,
   readRemoteSignerWebhookConfigFromEnv,
   type OidcRemoteSignerWebhookConfigInput,
-} from "./config.js";
+} from "./adapters/oidc/config.js";
 export {
   startRemoteSignerWebhookServer,
   type RemoteSignerWebhookServerOptions,
 } from "./server.js";
 
-import type { OidcRemoteSignerWebhookConfigInput } from "./config.js";
-import { handleRemoteSignerRefreshJwks as refreshJwks } from "./oidc-verifier.js";
+import type { OidcRemoteSignerWebhookConfigInput } from "./adapters/oidc/config.js";
+import { handleRemoteSignerRefreshJwks as refreshJwks } from "./adapters/oidc/verifier.js";
 
 /** @deprecated Use handleRemoteSignerRefreshJwks with OidcEndUserAuthConfig */
 export function createRemoteSignerRefreshJwksHandler(

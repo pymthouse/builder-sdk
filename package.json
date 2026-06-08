@@ -76,6 +76,11 @@
       "types": "./dist/signer/webhook/adapters/oidc.d.ts",
       "import": "./dist/signer/webhook/adapters/oidc.js",
       "require": "./dist/signer/webhook/adapters/oidc.cjs"
+    },
+    "./signer/webhook/adapters/oauth1": {
+      "types": "./dist/signer/webhook/adapters/oauth1.d.ts",
+      "import": "./dist/signer/webhook/adapters/oauth1.js",
+      "require": "./dist/signer/webhook/adapters/oauth1.cjs"
     }
   },
   "files": [

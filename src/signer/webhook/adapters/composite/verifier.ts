@@ -1,5 +1,5 @@
-import { PmtHouseError } from "../../errors.js";
-import type { EndUserAuthVerifier } from "./verifier.js";
+import { PmtHouseError } from "../../../../errors.js";
+import type { EndUserAuthVerifier } from "../../verifier.js";
 
 export function createFirstMatchEndUserVerifier(
   verifiers: EndUserAuthVerifier[],

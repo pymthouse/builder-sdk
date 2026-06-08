@@ -1,8 +1,11 @@
 import type {
   RemoteSignerWebhookConfig,
   WebhookAuthorizeContext,
-} from "./authorize.js";
-import { createOidcEndUserVerifier, type OidcEndUserAuthConfig } from "./oidc-verifier.js";
+} from "../../authorize.js";
+import {
+  createOidcEndUserVerifier,
+  type OidcEndUserAuthConfig,
+} from "./verifier.js";
 
 function envTrim(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const value = env[key]?.trim();
@@ -55,4 +58,5 @@ export function readOidcRemoteSignerWebhookConfigFromEnv(
 }
 
 /** @deprecated Use readOidcRemoteSignerWebhookConfigFromEnv */
-export const readRemoteSignerWebhookConfigFromEnv = readOidcRemoteSignerWebhookConfigFromEnv;
+export const readRemoteSignerWebhookConfigFromEnv =
+  readOidcRemoteSignerWebhookConfigFromEnv;

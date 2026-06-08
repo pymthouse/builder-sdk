@@ -1,14 +1,15 @@
-import { loadAuthorizationServer } from "../../discovery.js";
-import { verifyJwt } from "../../verify.js";
-import type { FetchLike } from "../../types.js";
-import { authenticateWebhookCaller } from "./authorize.js";
+import { loadAuthorizationServer } from "../../../../discovery.js";
+import { verifyJwt } from "../../../../verify.js";
+import type { FetchLike } from "../../../../types.js";
+import { authenticateWebhookCaller } from "../../authorize.js";
 import {
   claimExpirySeconds,
   DEFAULT_WEBHOOK_IDENTITY_CLAIMS,
   identityFromWebhookClaims,
   type WebhookIdentityClaimMapping,
-} from "./identity.js";
-import type { EndUserAuthVerifier } from "./verifier.js";
+} from "../../identity.js";
+import { bearerTokenFromAuthorization } from "../../bearer.js";
+import type { EndUserAuthVerifier } from "../../verifier.js";
 
 export type OidcEndUserAuthConfig = {
   jwtIssuer: string;
@@ -19,22 +20,6 @@ export type OidcEndUserAuthConfig = {
   requiredScopes?: string[];
   webhookSecret: string;
 };
-
-export function bearerTokenFromAuthorization(authorization: string): string {
-  const trimmed = authorization.trim();
-  if (!trimmed) {
-    throw new Error("missing authorization");
-  }
-  const prefix = "Bearer ";
-  if (!trimmed.startsWith(prefix)) {
-    throw new Error("authorization must be Bearer token");
-  }
-  const token = trimmed.slice(prefix.length).trim();
-  if (!token) {
-    throw new Error("empty bearer token");
-  }
-  return token;
-}
 
 export async function handleRemoteSignerRefreshJwks(
   request: Request,
@@ -62,7 +47,9 @@ export async function handleRemoteSignerRefreshJwks(
   }
 }
 
-export function createOidcEndUserVerifier(config: OidcEndUserAuthConfig): EndUserAuthVerifier {
+export function createOidcEndUserVerifier(
+  config: OidcEndUserAuthConfig,
+): EndUserAuthVerifier {
   const claimMapping = {
     ...DEFAULT_WEBHOOK_IDENTITY_CLAIMS,
     ...config.claimMapping,

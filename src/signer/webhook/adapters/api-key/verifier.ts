@@ -1,7 +1,7 @@
-import { PmtHouseError } from "../../errors.js";
-import { bearerTokenFromAuthorization } from "./oidc-verifier.js";
-import type { UsageIdentity } from "./types.js";
-import type { EndUserAuthVerifier } from "./verifier.js";
+import { PmtHouseError } from "../../../../errors.js";
+import { bearerTokenFromAuthorization } from "../../bearer.js";
+import type { UsageIdentity } from "../../types.js";
+import type { EndUserAuthVerifier } from "../../verifier.js";
 
 export type ApiKeyResolveResult = {
   userId: string;

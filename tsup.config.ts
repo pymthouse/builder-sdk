@@ -14,10 +14,13 @@ export default defineConfig({
     "signer/server": "src/signer/server.ts",
     "signer/webhook": "src/signer/webhook/index.ts",
     "signer/webhook/adapters/api-key":
-      "src/signer/webhook/adapters/api-key.ts",
+      "src/signer/webhook/adapters/api-key/index.ts",
     "signer/webhook/adapters/composite":
-      "src/signer/webhook/adapters/composite.ts",
-    "signer/webhook/adapters/oidc": "src/signer/webhook/adapters/oidc.ts",
+      "src/signer/webhook/adapters/composite/index.ts",
+    "signer/webhook/adapters/oidc":
+      "src/signer/webhook/adapters/oidc/index.ts",
+    "signer/webhook/adapters/oauth1":
+      "src/signer/webhook/adapters/oauth1/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

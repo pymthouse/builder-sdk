@@ -1,5 +1,5 @@
-import type { UsageIdentity } from "./types.js";
-import type { EndUserAuthVerifier } from "./verifier.js";
+import type { UsageIdentity } from "../../types.js";
+import type { EndUserAuthVerifier } from "../../verifier.js";
 
 export type OAuth1EndUserAuthConfig = {
   consumerKey: string;
