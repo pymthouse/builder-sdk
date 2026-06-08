@@ -122,27 +122,53 @@ const { manifest, etag, notModified } = await client.getAppManifest({
 ## Remote signer identity webhook
 
 For go-livepeer `-remoteSignerWebhookUrl` deployments, builder-sdk provides the
-reference **integration security** webhook that validates end-user JWTs and returns
-`UsageIdentity` to the signer (`POST /authorize`).
+reference **integration security** webhook that validates end-user credentials and
+returns `UsageIdentity` to the signer (`POST /authorize`).
+
+Transport (signer shared-secret auth, wire protocol) is separate from **end-user
+auth strategies** (`EndUserAuthVerifier`). OIDC/JWT is the default MVP; OAuth 1.0
+has a stub verifier for future integrations.
 
 ```ts
 import {
+  createOidcRemoteSignerWebhookConfig,
   createRemoteSignerAuthorizeHandler,
-  readRemoteSignerWebhookConfigFromEnv,
+  readOidcRemoteSignerWebhookConfigFromEnv,
   startRemoteSignerWebhookServer,
+  type EndUserAuthVerifier,
 } from "@pymthouse/builder-sdk/signer/webhook";
 
 // Standalone sidecar (loads JWT_ISSUER, JWT_AUDIENCE, WEBHOOK_SECRET from env)
 startRemoteSignerWebhookServer();
 
-// Or mount in your platform BFF
+// OIDC (default): Auth0, pymthouse issuer, etc.
 const authorize = createRemoteSignerAuthorizeHandler(
-  readRemoteSignerWebhookConfigFromEnv(),
+  createOidcRemoteSignerWebhookConfig({
+    webhookSecret: process.env.WEBHOOK_SECRET!,
+    jwtIssuer: process.env.JWT_ISSUER!,
+    jwtAudience: process.env.JWT_AUDIENCE!,
+    claimMapping: { claimClientId: "azp", usageSubjectType: "auth0_user_id" },
+  }),
 );
+
+// Custom provider: implement EndUserAuthVerifier
+const customConfig = {
+  webhookSecret: process.env.WEBHOOK_SECRET!,
+  endUserAuth: {
+    kind: "custom",
+    verify: async ({ authorization, payload, request }) => {
+      // validate provider credentials, return UsageIdentity
+      return { identity: { ... }, expiry: Math.trunc(Date.now() / 1000) + 300 };
+    },
+  } satisfies EndUserAuthVerifier,
+};
 ```
 
 Env vars align with `auth0-livepeer` bootstrap output (`.env.livepeer`). For Auth0,
 set `CLAIM_CLIENT_ID=azp` and `USAGE_SUBJECT_TYPE=auth0_user_id`.
+
+OAuth 1.0: `createOAuth1EndUserVerifier` exists as a stub; signature verification
+is not implemented yet.
 
 ## Subpath exports
 

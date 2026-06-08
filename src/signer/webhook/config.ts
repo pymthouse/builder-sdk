@@ -1,3 +1,5 @@
+import type { WebhookAuthorizeContext } from "./authorize.js";
+import { createOidcEndUserVerifier, type OidcEndUserAuthConfig } from "./oidc-verifier.js";
 import type { RemoteSignerWebhookConfig } from "./authorize.js";
 
 function envTrim(env: NodeJS.ProcessEnv, key: string): string | undefined {
@@ -5,7 +7,22 @@ function envTrim(env: NodeJS.ProcessEnv, key: string): string | undefined {
   return value || undefined;
 }
 
-export function readRemoteSignerWebhookConfigFromEnv(
+export type OidcRemoteSignerWebhookConfigInput = OidcEndUserAuthConfig & {
+  afterVerify?: (context: WebhookAuthorizeContext) => Promise<void>;
+};
+
+export function createOidcRemoteSignerWebhookConfig(
+  input: OidcRemoteSignerWebhookConfigInput,
+): RemoteSignerWebhookConfig {
+  const { afterVerify, ...oidcConfig } = input;
+  return {
+    webhookSecret: oidcConfig.webhookSecret,
+    endUserAuth: createOidcEndUserVerifier(oidcConfig),
+    afterVerify,
+  };
+}
+
+export function readOidcRemoteSignerWebhookConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): RemoteSignerWebhookConfig {
   const webhookSecret = envTrim(env, "WEBHOOK_SECRET");
@@ -22,7 +39,7 @@ export function readRemoteSignerWebhookConfigFromEnv(
     throw new Error("JWT_AUDIENCE is required");
   }
 
-  return {
+  return createOidcRemoteSignerWebhookConfig({
     webhookSecret,
     jwtIssuer,
     jwtAudience,
@@ -32,5 +49,8 @@ export function readRemoteSignerWebhookConfigFromEnv(
       usageSubjectType: envTrim(env, "USAGE_SUBJECT_TYPE") ?? "external_user_id",
     },
     allowInsecureHttp: envTrim(env, "ALLOW_INSECURE_HTTP") === "1",
-  };
+  });
 }
+
+/** @deprecated Use readOidcRemoteSignerWebhookConfigFromEnv */
+export const readRemoteSignerWebhookConfigFromEnv = readOidcRemoteSignerWebhookConfigFromEnv;

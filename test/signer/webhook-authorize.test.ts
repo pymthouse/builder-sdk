@@ -5,31 +5,52 @@ import { describe, expect, it } from "vitest";
 import {
   authenticateWebhookCaller,
   authorizationFromWebhookPayload,
+  createOAuth1EndUserVerifier,
+  createOidcRemoteSignerWebhookConfig,
   handleRemoteSignerAuthorize,
   handleRemoteSignerRefreshJwks,
   identityFromWebhookClaims,
+  routeRemoteSignerWebhookRequest,
+  type EndUserAuthVerifyContext,
+  type RemoteSignerWebhookConfig,
 } from "../../src/signer/webhook/index.js";
 
-const baseConfig = {
-  webhookSecret: "signer-secret",
-  jwtIssuer: "https://auth.test",
-  jwtAudience: "livepeer",
-  verifyEndUserToken: async (authorization: string) => {
-    if (!authorization.includes("good-token")) {
-      throw new Error("invalid token");
-    }
-    return {
-      claims: {
-        iss: "https://auth.test",
-        client_id: "app-1",
-        sub: "user-42",
-        usage_subject_type: "external_user_id",
-        exp: 4_102_444_800,
-      },
-      expiry: 4_102_444_800,
+function customWebhookConfig(
+  verify: (context: EndUserAuthVerifyContext) => Promise<{
+    identity: {
+      issuer: string;
+      client_id: string;
+      usage_subject: string;
+      usage_subject_type: string;
     };
-  },
-};
+    expiry: number;
+  }>,
+  afterVerify?: RemoteSignerWebhookConfig["afterVerify"],
+): RemoteSignerWebhookConfig {
+  return {
+    webhookSecret: "signer-secret",
+    endUserAuth: {
+      kind: "custom",
+      verify,
+    },
+    afterVerify,
+  };
+}
+
+const baseConfig = customWebhookConfig(async ({ authorization }) => {
+  if (!authorization.includes("good-token")) {
+    throw new Error("invalid token");
+  }
+  return {
+    identity: {
+      issuer: "https://auth.test",
+      client_id: "app-1",
+      usage_subject: "user-42",
+      usage_subject_type: "external_user_id",
+    },
+    expiry: 4_102_444_800,
+  };
+});
 
 describe("identityFromWebhookClaims", () => {
   it("maps claims with azp fallback for Auth0", () => {
@@ -134,6 +155,39 @@ describe("handleRemoteSignerAuthorize", () => {
     expect(body.status).toBe(200);
   });
 
+  it("passes full verify context to custom verifier", async () => {
+    let captured: EndUserAuthVerifyContext | undefined;
+    const config = customWebhookConfig(async (context) => {
+      captured = context;
+      return {
+        identity: {
+          issuer: "https://auth.test",
+          client_id: "app-1",
+          usage_subject: "user-42",
+          usage_subject_type: "external_user_id",
+        },
+        expiry: 4_102_444_800,
+      };
+    });
+
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer signer-secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        headers: { Authorization: ["Bearer good-token"] },
+        state: { StateID: "sess-1" },
+      }),
+    });
+
+    await handleRemoteSignerAuthorize(request, config);
+    expect(captured?.authorization).toBe("Bearer good-token");
+    expect(captured?.payload.state).toEqual({ StateID: "sess-1" });
+    expect(captured?.request).toBeInstanceOf(Request);
+  });
+
   it("runs afterVerify gating and returns policy status", async () => {
     const request = new Request("http://localhost/authorize", {
       method: "POST",
@@ -192,12 +246,56 @@ describe("handleRemoteSignerAuthorize", () => {
   });
 });
 
+describe("routeRemoteSignerWebhookRequest", () => {
+  it("routes /admin/refresh-jwks when using OIDC verifier", async () => {
+    const config = createOidcRemoteSignerWebhookConfig({
+      webhookSecret: "signer-secret",
+      jwtIssuer: "https://auth.test",
+      jwtAudience: "livepeer",
+    });
+
+    const request = new Request("http://localhost/admin/refresh-jwks", {
+      method: "POST",
+    });
+    const response = await routeRemoteSignerWebhookRequest(request, config);
+    expect(response).not.toBeNull();
+    expect(response?.status).toBe(401);
+  });
+});
+
 describe("handleRemoteSignerRefreshJwks", () => {
   it("requires webhook caller authentication", async () => {
     const request = new Request("http://localhost/admin/refresh-jwks", {
       method: "POST",
     });
-    const response = await handleRemoteSignerRefreshJwks(request, baseConfig);
+    const response = await handleRemoteSignerRefreshJwks(request, {
+      webhookSecret: "signer-secret",
+      jwtIssuer: "https://auth.test",
+      jwtAudience: "livepeer",
+    });
     expect(response.status).toBe(401);
+  });
+});
+
+describe("createOAuth1EndUserVerifier", () => {
+  it("throws not implemented", async () => {
+    const verifier = createOAuth1EndUserVerifier({
+      consumerKey: "key",
+      consumerSecret: "secret",
+      resolveIdentity: async () => ({
+        issuer: "https://example.com",
+        client_id: "app",
+        usage_subject: "user",
+        usage_subject_type: "external_user_id",
+      }),
+    });
+
+    await expect(
+      verifier.verify({
+        authorization: "OAuth oauth_token=abc",
+        payload: {},
+        request: new Request("http://localhost/authorize"),
+      }),
+    ).rejects.toThrow("OAuth 1.0 webhook verification is not implemented yet");
   });
 });

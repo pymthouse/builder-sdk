@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { readRemoteSignerWebhookConfigFromEnv } from "./config.js";
+import { readOidcRemoteSignerWebhookConfigFromEnv } from "./config.js";
 import { routeRemoteSignerWebhookRequest, type RemoteSignerWebhookConfig } from "./authorize.js";
 
 export type RemoteSignerWebhookServerOptions = {
@@ -11,7 +11,7 @@ export type RemoteSignerWebhookServerOptions = {
 export function startRemoteSignerWebhookServer(
   options: RemoteSignerWebhookServerOptions = {},
 ): Server {
-  const config = options.config ?? readRemoteSignerWebhookConfigFromEnv();
+  const config = options.config ?? readOidcRemoteSignerWebhookConfigFromEnv();
   const port = options.port ?? Number(process.env.PORT ?? 8090);
   const addr = options.addr ?? process.env.ADDR ?? "0.0.0.0";
 
@@ -63,7 +63,9 @@ export function startRemoteSignerWebhookServer(
     console.log(
       `[builder-sdk] remote signer identity webhook listening on http://${addr}:${port}`,
     );
-    console.log(`[builder-sdk] jwt issuer=${config.jwtIssuer} audience=${config.jwtAudience}`);
+    console.log(
+      `[builder-sdk] end-user auth strategy=${config.endUserAuth.kind}`,
+    );
   });
 
   return server;
