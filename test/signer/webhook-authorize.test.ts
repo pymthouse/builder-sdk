@@ -273,7 +273,6 @@ describe("handleRemoteSignerRefreshJwks", () => {
     const response = await handleRemoteSignerRefreshJwks(request, {
       webhookSecret: "signer-secret",
       jwtIssuer: "https://auth.test",
-      jwtAudience: "livepeer",
     });
     expect(response.status).toBe(401);
   });
