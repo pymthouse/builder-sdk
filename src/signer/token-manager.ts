@@ -19,10 +19,6 @@ export function createSignerTokenManager(options: SignerTokenManagerOptions): Si
   const cache = new Map<string, CachedSignerToken>();
   const inflight = new Map<string, Promise<CachedSignerToken>>();
 
-  function keyFor(publicClientId: string, externalUserId: string): string {
-    return cacheKey(publicClientId, externalUserId);
-  }
-
   function isUsable(entry: CachedSignerToken, now: number, forceRefresh: boolean): boolean {
     if (forceRefresh) return false;
     if (now >= entry.expiresAt) return false;
@@ -34,7 +30,7 @@ export function createSignerTokenManager(options: SignerTokenManagerOptions): Si
     publicClientId: string,
     externalUserId: string,
   ): Promise<CachedSignerToken> {
-    const key = keyFor(publicClientId, externalUserId);
+    const key = cacheKey(publicClientId, externalUserId);
     const existing = inflight.get(key);
     if (existing) {
       return existing;
@@ -64,18 +60,18 @@ export function createSignerTokenManager(options: SignerTokenManagerOptions): Si
 
   return {
     peek(publicClientId, externalUserId) {
-      return cache.get(keyFor(publicClientId, externalUserId));
+      return cache.get(cacheKey(publicClientId, externalUserId));
     },
 
     invalidate(publicClientId, externalUserId) {
-      const key = keyFor(publicClientId, externalUserId);
+      const key = cacheKey(publicClientId, externalUserId);
       cache.delete(key);
       inflight.delete(key);
     },
 
     async getToken(publicClientId, externalUserId, getOptions = {}) {
       const now = Date.now();
-      const key = keyFor(publicClientId, externalUserId);
+      const key = cacheKey(publicClientId, externalUserId);
       const cached = cache.get(key);
       if (cached && isUsable(cached, now, getOptions.forceRefresh === true)) {
         return cached;

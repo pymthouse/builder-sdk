@@ -8,7 +8,6 @@ export type {
   EndUserAuthVerifier,
   EndUserAuthVerifyContext,
   VerifiedEndUserAuth,
-  VerifiedEndUserToken,
   WebhookAdminRoute,
 } from "./verifier.js";
 

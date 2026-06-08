@@ -1,6 +1,8 @@
-import type { WebhookAuthorizeContext } from "./authorize.js";
+import type {
+  RemoteSignerWebhookConfig,
+  WebhookAuthorizeContext,
+} from "./authorize.js";
 import { createOidcEndUserVerifier, type OidcEndUserAuthConfig } from "./oidc-verifier.js";
-import type { RemoteSignerWebhookConfig } from "./authorize.js";
 
 function envTrim(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const value = env[key]?.trim();

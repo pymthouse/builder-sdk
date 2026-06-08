@@ -19,10 +19,12 @@ export type OAuth1EndUserAuthConfig = {
 export function createOAuth1EndUserVerifier(
   config: OAuth1EndUserAuthConfig,
 ): EndUserAuthVerifier {
-  void config;
   return {
     kind: "oauth1",
     verify: async () => {
+      if (!config.consumerKey.trim() || !config.consumerSecret.trim()) {
+        throw new Error("OAuth 1.0 consumer credentials are required");
+      }
       throw new Error("OAuth 1.0 webhook verification is not implemented yet");
     },
   };

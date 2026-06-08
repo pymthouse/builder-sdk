@@ -13,9 +13,6 @@ export type VerifiedEndUserAuth = {
   raw?: unknown;
 };
 
-/** @deprecated Use VerifiedEndUserAuth */
-export type VerifiedEndUserToken = VerifiedEndUserAuth;
-
 export type WebhookAdminRoute = {
   method: "POST";
   pathname: string;

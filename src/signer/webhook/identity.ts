@@ -18,8 +18,12 @@ function readClaim(payload: Record<string, unknown>, key: string): string {
   if (typeof value === "string" && value.trim()) {
     return value.trim();
   }
-  if (value != null && typeof value !== "object") {
-    return String(value).trim();
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
+    return value.toString().trim();
   }
   return "";
 }
