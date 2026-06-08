@@ -30,6 +30,7 @@ describe("forwardWithOptionalMetering", () => {
         resolveExternalUserId: async () => "user-1",
         fetch: ingestFetch,
       },
+      publicClientId: "app_x",
       externalUserId: "user-1",
       forward: async () =>
         new Response(JSON.stringify(upstreamBody), {
@@ -66,6 +67,7 @@ describe("forwardWithOptionalMetering", () => {
         resolveExternalUserId: async () => "user-1",
         fetch: ingestFetch,
       },
+      publicClientId: "app_x",
       externalUserId: "user-1",
       forward: async () =>
         new Response(JSON.stringify(upstreamBody), {

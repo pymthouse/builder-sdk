@@ -12,6 +12,7 @@ export default defineConfig({
     "device-initiate": "src/device-initiate.ts",
     verify: "src/verify.ts",
     "signer/server": "src/signer/server.ts",
+    "signer/webhook": "src/signer/webhook/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

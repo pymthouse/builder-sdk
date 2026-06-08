@@ -119,11 +119,37 @@ const { manifest, etag, notModified } = await client.getAppManifest({
 });
 ```
 
+## Remote signer identity webhook
+
+For go-livepeer `-remoteSignerWebhookUrl` deployments, builder-sdk provides the
+reference **integration security** webhook that validates end-user JWTs and returns
+`UsageIdentity` to the signer (`POST /authorize`).
+
+```ts
+import {
+  createRemoteSignerAuthorizeHandler,
+  readRemoteSignerWebhookConfigFromEnv,
+  startRemoteSignerWebhookServer,
+} from "@pymthouse/builder-sdk/signer/webhook";
+
+// Standalone sidecar (loads JWT_ISSUER, JWT_AUDIENCE, WEBHOOK_SECRET from env)
+startRemoteSignerWebhookServer();
+
+// Or mount in your platform BFF
+const authorize = createRemoteSignerAuthorizeHandler(
+  readRemoteSignerWebhookConfigFromEnv(),
+);
+```
+
+Env vars align with `auth0-livepeer` bootstrap output (`.env.livepeer`). For Auth0,
+set `CLAIM_CLIENT_ID=azp` and `USAGE_SUBJECT_TYPE=auth0_user_id`.
+
 ## Subpath exports
 
 | Import | Purpose |
 |--------|---------|
 | `@pymthouse/builder-sdk` | `PmtHouseClient`, usage helpers, manifest parsers, token helpers |
+| `@pymthouse/builder-sdk/signer/webhook` | Identity webhook for `-remoteSignerWebhookUrl` |
 | `@pymthouse/builder-sdk/config` | `isPymthouseConfigured`, `readPymthouseEnv` (Edge/middleware-safe) |
 | `@pymthouse/builder-sdk/tokens` | Signer session TTL, JWT shape helpers, `parseSignerSessionExchange` |
 | `@pymthouse/builder-sdk/format` | Wei formatting for Usage API |

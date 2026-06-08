@@ -37,7 +37,6 @@ export function createDirectSignerProxyHandler(
   config: DirectSignerProxyConfig,
 ): DirectSignerProxyHandler {
   const tokenManager = createSignerTokenManager({
-    publicClientId: config.pymthouseClientId,
     mint: (externalUserId) =>
       mintUserSignerToken({
         issuerUrl: config.pymthouseIssuerUrl,
@@ -90,7 +89,17 @@ export function createDirectSignerProxyHandler(
         });
       }
 
-      let token = await tokenManager.getToken(externalUserId);
+      const publicClientId = config.resolvePublicClientId
+        ? (await config.resolvePublicClientId(session)).trim()
+        : config.pymthouseClientId.trim();
+      if (!publicClientId) {
+        throw new PmtHouseError("resolvePublicClientId returned an empty id", {
+          status: 500,
+          code: "invalid_client_id",
+        });
+      }
+
+      let token = await tokenManager.getToken(publicClientId, externalUserId);
       const blocked = await runBeforeSign(token, externalUserId, request);
       if (blocked) {
         return blocked;
@@ -98,18 +107,22 @@ export function createDirectSignerProxyHandler(
 
       let upstream = await forwardWithOptionalMetering({
         config,
+        publicClientId,
         externalUserId,
         forward: () => forwardOnce(token, request),
       });
       if (upstream.status === 401) {
-        tokenManager.invalidate(externalUserId);
-        token = await tokenManager.getToken(externalUserId, { forceRefresh: true });
+        tokenManager.invalidate(publicClientId, externalUserId);
+        token = await tokenManager.getToken(publicClientId, externalUserId, {
+          forceRefresh: true,
+        });
         const retryBlocked = await runBeforeSign(token, externalUserId, request);
         if (retryBlocked) {
           return retryBlocked;
         }
         upstream = await forwardWithOptionalMetering({
           config,
+          publicClientId,
           externalUserId,
           forward: () => forwardOnce(token, request),
         });
@@ -121,8 +134,10 @@ export function createDirectSignerProxyHandler(
     }
   } as DirectSignerProxyHandler;
 
-  handler.getCachedUsage = (externalUserId: string) => tokenManager.peek(externalUserId);
-  handler.invalidateToken = (externalUserId: string) => tokenManager.invalidate(externalUserId);
+  handler.getCachedUsage = (externalUserId: string) =>
+    tokenManager.peek(config.pymthouseClientId, externalUserId);
+  handler.invalidateToken = (externalUserId: string) =>
+    tokenManager.invalidate(config.pymthouseClientId, externalUserId);
 
   return handler;
 }

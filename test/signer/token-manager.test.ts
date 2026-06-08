@@ -14,13 +14,10 @@ describe("createSignerTokenManager", () => {
       lifetimeGrantedUsdMicros: "1000",
     }));
 
-    const manager = createSignerTokenManager({
-      publicClientId: "app_pub",
-      mint,
-    });
+    const manager = createSignerTokenManager({ mint });
 
-    const first = await manager.getToken("user:1");
-    const second = await manager.getToken("user:1");
+    const first = await manager.getToken("app_pub", "user:1");
+    const second = await manager.getToken("app_pub", "user:1");
 
     expect(first.jwt).toBe("jwt-1");
     expect(second).toBe(first);
@@ -49,14 +46,11 @@ describe("createSignerTokenManager", () => {
         lifetimeGrantedUsdMicros: "1000",
       });
 
-    const manager = createSignerTokenManager({
-      publicClientId: "app_pub",
-      mint,
-    });
+    const manager = createSignerTokenManager({ mint });
 
-    await manager.getToken("user:1");
+    await manager.getToken("app_pub", "user:1");
     vi.setSystemTime(now + 8_001);
-    const refreshed = await manager.getToken("user:1");
+    const refreshed = await manager.getToken("app_pub", "user:1");
 
     expect(refreshed.jwt).toBe("jwt-2");
     expect(mint).toHaveBeenCalledTimes(2);
@@ -84,14 +78,11 @@ describe("createSignerTokenManager", () => {
         }),
     );
 
-    const manager = createSignerTokenManager({
-      publicClientId: "app_pub",
-      mint,
-    });
-    manager.invalidate("user:1");
+    const manager = createSignerTokenManager({ mint });
+    manager.invalidate("app_pub", "user:1");
 
-    const first = manager.getToken("user:1", { forceRefresh: true });
-    const second = manager.getToken("user:1", { forceRefresh: true });
+    const first = manager.getToken("app_pub", "user:1", { forceRefresh: true });
+    const second = manager.getToken("app_pub", "user:1", { forceRefresh: true });
 
     resolveMint({
       jwt: "jwt-shared",
@@ -115,14 +106,11 @@ describe("createSignerTokenManager", () => {
       lifetimeGrantedUsdMicros: "1000",
     }));
 
-    const manager = createSignerTokenManager({
-      publicClientId: "app_pub",
-      mint,
-    });
+    const manager = createSignerTokenManager({ mint });
 
-    await manager.getToken("user:1");
-    manager.invalidate("user:1");
-    await manager.getToken("user:1");
+    await manager.getToken("app_pub", "user:1");
+    manager.invalidate("app_pub", "user:1");
+    await manager.getToken("app_pub", "user:1");
 
     expect(mint).toHaveBeenCalledTimes(2);
   });

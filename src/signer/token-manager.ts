@@ -5,9 +5,13 @@ function cacheKey(clientId: string, externalUserId: string): string {
 }
 
 export interface SignerTokenManager {
-  getToken(externalUserId: string, options?: { forceRefresh?: boolean }): Promise<CachedSignerToken>;
-  invalidate(externalUserId: string): void;
-  peek(externalUserId: string): CachedSignerToken | undefined;
+  getToken(
+    publicClientId: string,
+    externalUserId: string,
+    options?: { forceRefresh?: boolean },
+  ): Promise<CachedSignerToken>;
+  invalidate(publicClientId: string, externalUserId: string): void;
+  peek(publicClientId: string, externalUserId: string): CachedSignerToken | undefined;
 }
 
 export function createSignerTokenManager(options: SignerTokenManagerOptions): SignerTokenManager {
@@ -15,8 +19,8 @@ export function createSignerTokenManager(options: SignerTokenManagerOptions): Si
   const cache = new Map<string, CachedSignerToken>();
   const inflight = new Map<string, Promise<CachedSignerToken>>();
 
-  function keyFor(externalUserId: string): string {
-    return cacheKey(options.publicClientId, externalUserId);
+  function keyFor(publicClientId: string, externalUserId: string): string {
+    return cacheKey(publicClientId, externalUserId);
   }
 
   function isUsable(entry: CachedSignerToken, now: number, forceRefresh: boolean): boolean {
@@ -26,8 +30,11 @@ export function createSignerTokenManager(options: SignerTokenManagerOptions): Si
     return true;
   }
 
-  async function refresh(externalUserId: string): Promise<CachedSignerToken> {
-    const key = keyFor(externalUserId);
+  async function refresh(
+    publicClientId: string,
+    externalUserId: string,
+  ): Promise<CachedSignerToken> {
+    const key = keyFor(publicClientId, externalUserId);
     const existing = inflight.get(key);
     if (existing) {
       return existing;
@@ -56,25 +63,25 @@ export function createSignerTokenManager(options: SignerTokenManagerOptions): Si
   }
 
   return {
-    peek(externalUserId) {
-      return cache.get(keyFor(externalUserId));
+    peek(publicClientId, externalUserId) {
+      return cache.get(keyFor(publicClientId, externalUserId));
     },
 
-    invalidate(externalUserId) {
-      const key = keyFor(externalUserId);
+    invalidate(publicClientId, externalUserId) {
+      const key = keyFor(publicClientId, externalUserId);
       cache.delete(key);
       inflight.delete(key);
     },
 
-    async getToken(externalUserId, getOptions = {}) {
+    async getToken(publicClientId, externalUserId, getOptions = {}) {
       const now = Date.now();
-      const key = keyFor(externalUserId);
+      const key = keyFor(publicClientId, externalUserId);
       const cached = cache.get(key);
       if (cached && isUsable(cached, now, getOptions.forceRefresh === true)) {
         return cached;
       }
 
-      return refresh(externalUserId);
+      return refresh(publicClientId, externalUserId);
     },
   };
 }

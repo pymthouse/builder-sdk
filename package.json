@@ -56,6 +56,11 @@
       "types": "./dist/signer/server.d.ts",
       "import": "./dist/signer/server.js",
       "require": "./dist/signer/server.cjs"
+    },
+    "./signer/webhook": {
+      "types": "./dist/signer/webhook.d.ts",
+      "import": "./dist/signer/webhook.js",
+      "require": "./dist/signer/webhook.cjs"
     }
   },
   "files": [
@@ -75,6 +80,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "webhook:serve": "node examples/remote-signer-webhook.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prepack": "pnpm run build"

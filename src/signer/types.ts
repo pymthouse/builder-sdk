@@ -42,6 +42,7 @@ export interface DirectSignerProxyConfig {
   metering?: SignerMeteringConfig;
   authenticate: (request: Request) => Promise<unknown>;
   resolveExternalUserId: (session: unknown) => Promise<string>;
+  resolvePublicClientId?: (session: unknown) => Promise<string>;
   beforeSign?: (context: DirectSignerBeforeSignContext) => Promise<DirectSignerBeforeSignResult | void>;
 }
 
@@ -78,7 +79,6 @@ export interface MintUserSignerTokenResponse {
 }
 
 export interface SignerTokenManagerOptions {
-  publicClientId: string;
   mint: (externalUserId: string) => Promise<CachedSignerToken>;
   /** Fraction of TTL after which a proactive refresh runs. Defaults to `0.8`. */
   ttlRefreshRatio?: number;
@@ -102,6 +102,8 @@ export interface ForwardToSignerOptions {
   subject: string;
   getDmzToken: (subject: string, gate: SignerDmzGate) => Promise<string>;
   forwardJwt?: boolean;
+  /** When set, used as Authorization instead of minting a DMZ JWT. */
+  authorization?: string;
   /** Merged after Authorization; used for go-livepeer trusted_headers identity. */
   extraHeaders?: Record<string, string>;
   timeoutMs?: number;

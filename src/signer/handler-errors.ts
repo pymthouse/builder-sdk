@@ -1,7 +1,18 @@
 import { PmtHouseError } from "../errors.js";
 
-export function signerHandlerErrorResponse(error: unknown): Response {
+function isPmtHouseError(error: unknown): error is PmtHouseError {
   if (error instanceof PmtHouseError) {
+    return true;
+  }
+  return (
+    error instanceof Error &&
+    typeof (error as PmtHouseError).status === "number" &&
+    typeof (error as PmtHouseError).code === "string"
+  );
+}
+
+export function signerHandlerErrorResponse(error: unknown): Response {
+  if (isPmtHouseError(error)) {
     return new Response(
       JSON.stringify({
         error: error.code,

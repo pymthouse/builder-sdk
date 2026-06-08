@@ -9,6 +9,7 @@ import type { DirectSignerProxyConfig } from "./types.js";
 
 export async function forwardWithOptionalMetering(input: {
   config: DirectSignerProxyConfig;
+  publicClientId: string;
   externalUserId: string;
   forward: () => Promise<Response>;
 }): Promise<Response> {
@@ -31,7 +32,7 @@ export async function forwardWithOptionalMetering(input: {
     try {
       await ingestSignedTicket({
         issuerUrl: input.config.pymthouseIssuerUrl,
-        publicClientId: input.config.pymthouseClientId,
+        publicClientId: input.publicClientId,
         m2mClientId: input.config.pymthouseM2MClientId,
         m2mClientSecret: input.config.pymthouseM2MClientSecret,
         ticket: signerSnapshotToIngestPayload({
