@@ -24,7 +24,7 @@ export type {
   VerifiedEndUserAuth,
   WebhookAdminRoute,
 } from "./verifier.js";
-export { bearerTokenFromAuthorization } from "./bearer.js";
+export { bearerTokenFromAuthorization, optionalBearerToken } from "./bearer.js";
 export {
   createApiKeyEndUserVerifier,
   type ApiKeyEndUserVerifierConfig,

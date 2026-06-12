@@ -96,6 +96,16 @@ describe("authorizationFromWebhookPayload", () => {
       }),
     ).toBe("Bearer legacy");
   });
+
+  it("matches headers case-insensitively", () => {
+    expect(
+      authorizationFromWebhookPayload({
+        headers: {
+          authorization: ["Bearer lower-case-key"],
+        },
+      }),
+    ).toBe("Bearer lower-case-key");
+  });
 });
 
 describe("handleRemoteSignerAuthorize", () => {
@@ -313,6 +323,14 @@ describe("authenticateWebhookCaller", () => {
       headers: { "x-webhook-secret": "wrong-secret" },
     });
     expect(authenticateWebhookCaller(request, "signer-secret")).toBe(false);
+  });
+
+  it("rejects Bearer tokens that differ by one character", () => {
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: { Authorization: "Bearer signer-secret" },
+    });
+    expect(authenticateWebhookCaller(request, "signer-secre")).toBe(false);
   });
 });
 

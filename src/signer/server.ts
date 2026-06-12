@@ -28,8 +28,11 @@ function toResponse(result: DirectSignerBeforeSignResult): Response {
 
 export interface DirectSignerProxyHandler {
   (request: Request): Promise<Response>;
-  getCachedUsage(externalUserId: string): CachedSignerToken | undefined;
-  invalidateToken(externalUserId: string): void;
+  getCachedUsage(
+    publicClientId: string,
+    externalUserId: string,
+  ): CachedSignerToken | undefined;
+  invalidateToken(publicClientId: string, externalUserId: string): void;
 }
 
 export function createDirectSignerProxyHandler(
@@ -123,10 +126,10 @@ export function createDirectSignerProxyHandler(
     }
   } as DirectSignerProxyHandler;
 
-  handler.getCachedUsage = (externalUserId: string) =>
-    tokenManager.peek(config.pymthouseClientId, externalUserId);
-  handler.invalidateToken = (externalUserId: string) =>
-    tokenManager.invalidate(config.pymthouseClientId, externalUserId);
+  handler.getCachedUsage = (publicClientId, externalUserId) =>
+    tokenManager.peek(publicClientId, externalUserId);
+  handler.invalidateToken = (publicClientId, externalUserId) =>
+    tokenManager.invalidate(publicClientId, externalUserId);
 
   return handler;
 }

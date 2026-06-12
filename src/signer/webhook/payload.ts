@@ -1,5 +1,17 @@
 import type { PaymentWebhookRequest } from "./types.js";
 
+function firstHeaderValue(values: string[] | undefined): string {
+  if (!Array.isArray(values)) {
+    return "";
+  }
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
 export function headerValueFromWebhookPayload(
   headers: Record<string, string[]> | undefined,
   name: string,
@@ -7,18 +19,14 @@ export function headerValueFromWebhookPayload(
   if (!headers) {
     return "";
   }
+  const direct = firstHeaderValue(headers[name]);
+  if (direct) {
+    return direct;
+  }
   const target = name.toLowerCase();
   for (const [key, values] of Object.entries(headers)) {
-    if (key.toLowerCase() !== target) {
-      continue;
-    }
-    if (!Array.isArray(values)) {
-      continue;
-    }
-    for (const value of values) {
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
+    if (key.toLowerCase() === target) {
+      return firstHeaderValue(values);
     }
   }
   return "";

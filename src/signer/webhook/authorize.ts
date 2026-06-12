@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { PmtHouseError } from "../../errors.js";
+import { optionalBearerToken } from "./bearer.js";
 import { authorizationFromWebhookPayload } from "./payload.js";
 import type { PaymentWebhookRequest, PaymentWebhookResponse } from "./types.js";
 import type { EndUserAuthVerifier, VerifiedEndUserAuth } from "./verifier.js";
@@ -43,8 +44,8 @@ export function authenticateWebhookCaller(request: Request, secret: string): boo
     return false;
   }
   const trimmed = secret.trim();
-  const auth = request.headers.get("authorization")?.trim() ?? "";
-  if (auth === `Bearer ${trimmed}`) {
+  const bearer = optionalBearerToken(request.headers.get("authorization") ?? "");
+  if (bearer && timingSafeEqualStrings(bearer, trimmed)) {
     return true;
   }
   const apiKey = request.headers.get("x-api-key")?.trim() ?? "";

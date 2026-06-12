@@ -247,9 +247,7 @@ export async function forwardToSigner(
 
   const explicitAuth = options.authorization?.trim();
   if (explicitAuth) {
-    headers.Authorization = explicitAuth.startsWith("Bearer ")
-      ? explicitAuth
-      : `Bearer ${explicitAuth}`;
+    headers.Authorization = explicitAuth;
   } else {
     const attachJwt = options.forwardJwt ?? true;
     if (attachJwt) {
