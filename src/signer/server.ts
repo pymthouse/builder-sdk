@@ -137,6 +137,7 @@ export {
   mintUserSignerToken,
   parseMintUserSignerTokenResponse,
   SIGN_MINT_USER_TOKEN_SCOPE,
+  signerJwtAudience,
   LIVEPEER_REMOTE_SIGNER_AUDIENCE,
 } from "./mint-token.js";
 export {

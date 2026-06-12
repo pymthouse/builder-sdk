@@ -100,13 +100,7 @@ export async function handleRemoteSignerAuthorize(
     });
   }
 
-  const authorization = authorizationFromWebhookPayload(payload);
-  if (!authorization) {
-    return paymentWebhookJson(400, {
-      status: 400,
-      reason: "missing authorization in webhook payload headers",
-    });
-  }
+  const authorization = authorizationFromWebhookPayload(payload) ?? "";
 
   try {
     const verified = await config.endUserAuth.verify({

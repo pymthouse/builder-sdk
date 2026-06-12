@@ -1,6 +1,6 @@
 import type { PaymentWebhookRequest } from "./types.js";
 
-function headerValue(
+export function headerValueFromWebhookPayload(
   headers: Record<string, string[]> | undefined,
   name: string,
 ): string {
@@ -28,7 +28,10 @@ function headerValue(
 export function authorizationFromWebhookPayload(
   payload: PaymentWebhookRequest,
 ): string {
-  const fromHeaders = headerValue(payload.headers, "Authorization");
+  const fromHeaders = headerValueFromWebhookPayload(
+    payload.headers,
+    "Authorization",
+  );
   if (fromHeaders) {
     return fromHeaders;
   }

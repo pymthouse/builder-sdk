@@ -1,16 +1,22 @@
+import { stripTrailingSlashes } from "../string-utils.js";
 import { loadAuthorizationServer } from "../discovery.js";
 import { encodeClientSecretBasic } from "../encoding.js";
 import { PmtHouseError } from "../errors.js";
-import { stripTrailingSlashes } from "../string-utils.js";
 import { readJsonObjectFromResponse } from "./fetch-json.js";
 import { readExpiresIn, readStringField } from "./json-fields.js";
 import type { CachedSignerToken, MintUserSignerTokenOptions, MintUserSignerTokenResponse } from "./types.js";
 
 export const SIGN_MINT_USER_TOKEN_SCOPE = "sign:mint_user_token";
+
+/** @deprecated Signer JWT `aud` is the OIDC issuer URL; kept for legacy callers. */
 export const LIVEPEER_REMOTE_SIGNER_AUDIENCE = "livepeer-remote-signer";
 
 const DEFAULT_TTL_REFRESH_RATIO = 0.8;
 const TOKEN_RESPONSE_ERROR = "invalid_token_response";
+
+export function signerJwtAudience(issuerUrl: string): string {
+  return stripTrailingSlashes(issuerUrl);
+}
 
 export function parseMintUserSignerTokenResponse(
   body: Record<string, unknown>,
@@ -59,11 +65,12 @@ export async function mintUserSignerToken(
     });
   }
 
+  const audience = signerJwtAudience(issuerUrl);
   const body = new URLSearchParams({
     grant_type: "client_credentials",
     scope: SIGN_MINT_USER_TOKEN_SCOPE,
     external_user_id: options.externalUserId,
-    audience: LIVEPEER_REMOTE_SIGNER_AUDIENCE,
+    audience,
   });
 
   const response = await fetchImpl(tokenEndpoint, {

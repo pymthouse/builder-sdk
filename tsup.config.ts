@@ -21,6 +21,8 @@ export default defineConfig({
       "src/signer/webhook/adapters/oidc/index.ts",
     "signer/webhook/adapters/oauth1":
       "src/signer/webhook/adapters/oauth1/index.ts",
+    "signer/webhook/adapters/trusted-headers":
+      "src/signer/webhook/adapters/trusted-headers/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

@@ -81,6 +81,11 @@
       "types": "./dist/signer/webhook/adapters/oauth1.d.ts",
       "import": "./dist/signer/webhook/adapters/oauth1.js",
       "require": "./dist/signer/webhook/adapters/oauth1.cjs"
+    },
+    "./signer/webhook/adapters/trusted-headers": {
+      "types": "./dist/signer/webhook/adapters/trusted-headers.d.ts",
+      "import": "./dist/signer/webhook/adapters/trusted-headers.js",
+      "require": "./dist/signer/webhook/adapters/trusted-headers.cjs"
     }
   },
   "files": [

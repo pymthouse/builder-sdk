@@ -135,7 +135,9 @@ describe("handleRemoteSignerAuthorize", () => {
     });
 
     const response = await handleRemoteSignerAuthorize(request, baseConfig);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { status: number };
+    expect(body.status).toBe(403);
   });
 
   it("accepts authorization from headers-only go-livepeer payload", async () => {

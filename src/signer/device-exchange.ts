@@ -6,8 +6,8 @@ import { readJsonObjectFromResponse } from "./fetch-json.js";
 import { readExpiresIn, readStringField } from "./json-fields.js";
 import { signerHandlerErrorResponse } from "./handler-errors.js";
 import {
-  LIVEPEER_REMOTE_SIGNER_AUDIENCE,
   parseMintUserSignerTokenResponse,
+  signerJwtAudience,
 } from "./mint-token.js";
 import type {
   DeviceExchangeHandlerConfig,
@@ -132,7 +132,7 @@ export async function mintSignerTokenFromDeviceToken(
     });
   }
 
-  const audience = options.audience?.trim() || LIVEPEER_REMOTE_SIGNER_AUDIENCE;
+  const audience = options.audience?.trim() || signerJwtAudience(issuerUrl);
   const params = new URLSearchParams({
     grant_type: TOKEN_EXCHANGE_GRANT,
     subject_token: options.deviceToken,

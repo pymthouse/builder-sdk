@@ -146,7 +146,7 @@ describe("mintSignerTokenFromDeviceToken", () => {
     const params = new URLSearchParams(urlEncodedBodyString(init?.body));
     expect(params.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:token-exchange");
     expect(params.get("subject_token")).toBe("user.jwt");
-    expect(params.get("audience")).toBe("livepeer-remote-signer");
+    expect(params.get("audience")).toBe("https://pymthouse.example/api/v1/oidc");
   });
 });
 

@@ -20,7 +20,7 @@ export type WebhookAdminRoute = {
 };
 
 export type EndUserAuthVerifier = {
-  kind: "oidc" | "oauth1" | "custom";
+  kind: "oidc" | "oauth1" | "trusted_headers" | "custom";
   verify: (context: EndUserAuthVerifyContext) => Promise<VerifiedEndUserAuth>;
   adminRoutes?: WebhookAdminRoute[];
 };

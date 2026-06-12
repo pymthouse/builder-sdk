@@ -2,6 +2,11 @@ import type {
   RemoteSignerWebhookConfig,
   WebhookAuthorizeContext,
 } from "../../authorize.js";
+import { createFirstMatchEndUserVerifier } from "../composite/verifier.js";
+import {
+  createTrustedHeadersEndUserVerifier,
+  type TrustedHeadersEndUserAuthConfig,
+} from "../trusted-headers/verifier.js";
 import {
   createOidcEndUserVerifier,
   type OidcEndUserAuthConfig,
@@ -16,6 +21,13 @@ export type OidcRemoteSignerWebhookConfigInput = OidcEndUserAuthConfig & {
   afterVerify?: (context: WebhookAuthorizeContext) => Promise<void>;
 };
 
+export type SignerDmzRemoteSignerWebhookConfigInput =
+  OidcRemoteSignerWebhookConfigInput & {
+    /** When true (default), accept Apache DMZ X-Livepeer-* identity headers. */
+    dmzTrustedHeaders?: boolean;
+    trustedHeaders?: Omit<TrustedHeadersEndUserAuthConfig, "expectedIssuer">;
+  };
+
 export function createOidcRemoteSignerWebhookConfig(
   input: OidcRemoteSignerWebhookConfigInput,
 ): RemoteSignerWebhookConfig {
@@ -27,12 +39,45 @@ export function createOidcRemoteSignerWebhookConfig(
   };
 }
 
+/**
+ * PymtHouse signer-dmz: Apache validates the end-user JWT (iss/aud = issuer), injects
+ * X-Livepeer-* headers, and go-livepeer forwards those headers to this webhook per
+ * go-livepeer remote-signer.md. Falls back to Bearer JWT verification when present.
+ */
+export function createSignerDmzRemoteSignerWebhookConfig(
+  input: SignerDmzRemoteSignerWebhookConfigInput,
+): RemoteSignerWebhookConfig {
+  const {
+    afterVerify,
+    dmzTrustedHeaders = true,
+    trustedHeaders,
+    ...oidcConfig
+  } = input;
+  const oidcVerifier = createOidcEndUserVerifier(oidcConfig);
+  const endUserAuth =
+    dmzTrustedHeaders === false
+      ? oidcVerifier
+      : createFirstMatchEndUserVerifier([
+          createTrustedHeadersEndUserVerifier({
+            expectedIssuer: oidcConfig.jwtIssuer,
+            ...trustedHeaders,
+          }),
+          oidcVerifier,
+        ]);
+
+  return {
+    webhookSecret: oidcConfig.webhookSecret,
+    endUserAuth,
+    afterVerify,
+  };
+}
+
 export function readOidcRemoteSignerWebhookConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): RemoteSignerWebhookConfig {
   const webhookSecret = envTrim(env, "WEBHOOK_SECRET");
   const jwtIssuer = envTrim(env, "JWT_ISSUER");
-  const jwtAudience = envTrim(env, "JWT_AUDIENCE");
+  const jwtAudience = envTrim(env, "JWT_AUDIENCE") ?? jwtIssuer;
 
   if (!webhookSecret) {
     throw new Error("WEBHOOK_SECRET is required");
@@ -44,7 +89,7 @@ export function readOidcRemoteSignerWebhookConfigFromEnv(
     throw new Error("JWT_AUDIENCE is required");
   }
 
-  return createOidcRemoteSignerWebhookConfig({
+  return createSignerDmzRemoteSignerWebhookConfig({
     webhookSecret,
     jwtIssuer,
     jwtAudience,

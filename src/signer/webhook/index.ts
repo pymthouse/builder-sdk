@@ -40,13 +40,21 @@ export {
   createOAuth1EndUserVerifier,
   type OAuth1EndUserAuthConfig,
 } from "./adapters/oauth1/index.js";
-export { authorizationFromWebhookPayload } from "./payload.js";
+export { authorizationFromWebhookPayload, headerValueFromWebhookPayload } from "./payload.js";
 export {
   createOidcRemoteSignerWebhookConfig,
+  createSignerDmzRemoteSignerWebhookConfig,
   readOidcRemoteSignerWebhookConfigFromEnv,
   readRemoteSignerWebhookConfigFromEnv,
   type OidcRemoteSignerWebhookConfigInput,
+  type SignerDmzRemoteSignerWebhookConfigInput,
 } from "./adapters/oidc/config.js";
+export {
+  createTrustedHeadersEndUserVerifier,
+  DEFAULT_DMZ_TRUSTED_HEADERS,
+  identityFromTrustedHeaders,
+  type TrustedHeadersEndUserAuthConfig,
+} from "./adapters/trusted-headers/index.js";
 export {
   startRemoteSignerWebhookServer,
   type RemoteSignerWebhookServerOptions,
