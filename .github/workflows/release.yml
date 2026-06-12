@@ -39,7 +39,7 @@ jobs:
       - run: pnpm build
       - name: Verify package.json repository matches this repo
         run: |
-          REPO_URL=$(node -p "require('./package.json').repository.url")
+          REPO_URL=$(node -p "require('./package.json').repository.url.replace(/^git\\+/, '')")
           EXPECTED="https://github.com/${GITHUB_REPOSITORY}.git"
           if [ "$REPO_URL" != "$EXPECTED" ]; then
             echo "::error::package.json repository.url must be ${EXPECTED} for npm provenance (got ${REPO_URL})"
@@ -51,7 +51,14 @@ jobs:
         # Use npm CLI (not pnpm publish): OIDC is implemented in npm, not pnpm.
         # Do not set NODE_AUTH_TOKEN here — setup-node wires OIDC from id-token: write.
         # Provenance is generated automatically with trusted publishing.
-        run: npm publish --access public --no-git-checks
+        # Prerelease versions (e.g. 0.4.1-rc.0) must use an npm dist-tag other than latest.
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if echo "$VERSION" | grep -q '-'; then
+            npm publish --access public --no-git-checks --tag rc
+          else
+            npm publish --access public --no-git-checks
+          fi
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,4 +74,5 @@ jobs:
             -R "${GITHUB_REPOSITORY}" \
             --title "${PKG} v${VER}" \
             --generate-notes \
-            --verify-tag
+            --verify-tag \
+            $(echo "$VER" | grep -q '-' && echo --prerelease)
