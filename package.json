@@ -133,7 +133,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/pymthouse/builder-sdk.git"
+    "url": "git+https://github.com/pymthouse/builder-sdk.git"
   },
   "bugs": {
     "url": "https://github.com/pymthouse/builder-sdk/issues"
