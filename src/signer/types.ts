@@ -1,27 +1,6 @@
 import type { FetchLike } from "../types.js";
 
-/**
- * - `pymthouse_hosted`: after sign, POST usage to Builder API (`/usage/signed-tickets`).
- * - `platform_ingest` / `byo_openmeter`: platform calls ingest explicitly (no auto POST).
- */
-export type SignerMeteringMode = "pymthouse_hosted" | "platform_ingest" | "byo_openmeter";
-
-export function resolvesToHostedMetering(mode: SignerMeteringMode | undefined): boolean {
-  return mode === "pymthouse_hosted";
-}
-
-export function resolvesToPlatformMetering(mode: SignerMeteringMode | undefined): boolean {
-  return mode === "platform_ingest" || mode === "byo_openmeter";
-}
 export type SignerDmzGate = "http" | "cli";
-
-export interface SignerMeteringConfig {
-  mode: SignerMeteringMode;
-  openMeterBaseUrl?: string;
-  openMeterApiKey?: string;
-  meterSlug?: string;
-  featureKey?: string;
-}
 
 export interface DirectSignerProxyConfig {
   pymthouseIssuerUrl: string;
@@ -39,7 +18,6 @@ export interface DirectSignerProxyConfig {
   proxyPathPrefix?: string;
   /** Remote path used when the proxied suffix is empty. Defaults to `/generate-live-payment`. */
   defaultRemotePath?: string;
-  metering?: SignerMeteringConfig;
   authenticate: (request: Request) => Promise<unknown>;
   resolveExternalUserId: (session: unknown) => Promise<string>;
   resolvePublicClientId?: (session: unknown) => Promise<string>;

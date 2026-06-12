@@ -29,5 +29,7 @@ export type PaymentWebhookResponse = {
   status?: number;
   reason?: string;
   expiry?: number;
+  /** Opaque identity binding persisted by go-livepeer RemotePaymentState. */
+  auth_id?: string;
   identity?: UsageIdentity;
 };

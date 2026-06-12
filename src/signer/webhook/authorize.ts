@@ -25,6 +25,10 @@ export type RemoteSignerWebhookConfig = {
   afterVerify?: (context: WebhookAuthorizeContext) => Promise<void>;
 };
 
+function authIdFromIdentity(identity: VerifiedEndUserAuth["identity"]): string {
+  return `${identity.client_id}:${identity.usage_subject}`;
+}
+
 function timingSafeEqualStrings(a: string, b: string): boolean {
   const aBuffer = Buffer.from(a);
   const bBuffer = Buffer.from(b);
@@ -124,6 +128,7 @@ export async function handleRemoteSignerAuthorize(
     return paymentWebhookJson(200, {
       status: 200,
       expiry: verified.expiry,
+      auth_id: authIdFromIdentity(verified.identity),
       identity: verified.identity,
     });
   } catch (err) {

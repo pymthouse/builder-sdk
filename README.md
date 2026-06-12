@@ -204,9 +204,9 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 
 **Retail estimates:** `getUsage({ includeRetail: true, groupBy: "pipeline_model" })` adds `endUserBillableUsdMicros` / fiat rows when the active plan has retail rates.
 
-**Signed-ticket ingest (platform metering):** after a signer proxy response, call `ingestSignedTicket` or use `forwardWithOptionalMetering` with `metering: { mode: "pymthouse_hosted" }` on `createSignerProxyServer` — usage is stripped from the client response and POSTed to `POST /api/v1/apps/{id}/usage/signed-tickets`.
+**Metering:** sign directly against the remote signer DMZ with `createDirectSignerProxyHandler` or `forwardDirectSignerRequest`. Usage is emitted asynchronously by go-livepeer to Kafka and ingested by the OpenMeter collector. The PymtHouse `/api/signer/*` HTTP proxy and synchronous HTTP signed-ticket ingest are removed.
 
-**Routing:** `getSignerRouting()` returns `signerApiUrl`, `remoteDmzUrl`, `meteringMode`, and pattern hints for hosted vs platform-ingest vs BYO OpenMeter.
+**Routing:** `getSignerRouting()` returns the remote DMZ URL, webhook URL, and migration hints (`directDmz` / `deprecatedHostedFacade`).
 
 **Allowances (OpenMeter):** Trial and manual USD micros allowance use OpenMeter entitlements — not a Postgres wei ledger.
 

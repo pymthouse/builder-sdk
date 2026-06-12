@@ -2,7 +2,6 @@ import { PmtHouseError } from "../errors.js";
 import { signerHandlerErrorResponse } from "./handler-errors.js";
 import { createSignerTokenManager } from "./token-manager.js";
 import { forwardDirectSignerRequest } from "./forward.js";
-import { forwardWithOptionalMetering } from "./metering.js";
 import { mintUserSignerToken } from "./mint-token.js";
 import type {
   CachedSignerToken,
@@ -105,12 +104,7 @@ export function createDirectSignerProxyHandler(
         return blocked;
       }
 
-      let upstream = await forwardWithOptionalMetering({
-        config,
-        publicClientId,
-        externalUserId,
-        forward: () => forwardOnce(token, request),
-      });
+      let upstream = await forwardOnce(token, request);
       if (upstream.status === 401) {
         tokenManager.invalidate(publicClientId, externalUserId);
         token = await tokenManager.getToken(publicClientId, externalUserId, {
@@ -120,12 +114,7 @@ export function createDirectSignerProxyHandler(
         if (retryBlocked) {
           return retryBlocked;
         }
-        upstream = await forwardWithOptionalMetering({
-          config,
-          publicClientId,
-          externalUserId,
-          forward: () => forwardOnce(token, request),
-        });
+        upstream = await forwardOnce(token, request);
       }
 
       return upstream;
@@ -177,13 +166,6 @@ export {
   resolveSignerBaseUrl,
   stripSignerUsageFromResponse,
 } from "./proxy.js";
-export {
-  forwardWithOptionalMetering,
-} from "./metering.js";
-export {
-  ingestSignedTicket,
-  signerSnapshotToIngestPayload,
-} from "../ingest.js";
 export type {
   CachedSignerToken,
   DirectSignerBeforeSignContext,
@@ -209,10 +191,6 @@ export type {
   ProbeSignerHttpReachabilityOptions,
   SignerDmzGate,
   SignerJwtIdentity,
-  SignerMeteringConfig,
-  SignerMeteringMode,
   SignerTokenManagerOptions,
-  resolvesToHostedMetering,
-  resolvesToPlatformMetering,
 } from "./types.js";
 export type { SignerUsageSnapshot } from "./proxy.js";

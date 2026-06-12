@@ -115,9 +115,11 @@ describe("handleRemoteSignerAuthorize", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       status: number;
+      auth_id: string;
       identity: { usage_subject: string; client_id: string };
     };
     expect(body.status).toBe(200);
+    expect(body.auth_id).toBe("app-1:user-42");
     expect(body.identity.usage_subject).toBe("user-42");
     expect(body.identity.client_id).toBe("app-1");
   });
