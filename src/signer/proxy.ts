@@ -245,14 +245,19 @@ export async function forwardToSigner(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-  const attachJwt = options.forwardJwt ?? true;
-  if (attachJwt) {
-    const token = await getCachedDmzBearerToken(
-      options.subject,
-      "http",
-      options.getDmzToken,
-    );
-    headers.Authorization = `Bearer ${token}`;
+  const explicitAuth = options.authorization?.trim();
+  if (explicitAuth) {
+    headers.Authorization = explicitAuth;
+  } else {
+    const attachJwt = options.forwardJwt ?? true;
+    if (attachJwt) {
+      const token = await getCachedDmzBearerToken(
+        options.subject,
+        "http",
+        options.getDmzToken,
+      );
+      headers.Authorization = `Bearer ${token}`;
+    }
   }
   if (options.extraHeaders) {
     for (const [name, value] of Object.entries(options.extraHeaders)) {
