@@ -39,7 +39,9 @@ jobs:
       - run: pnpm build
       - name: Verify package.json repository matches this repo
         run: |
-          REPO_URL=$(node -p "require('./package.json').repository.url")
+          # Strip the optional `git+` prefix so both `https://…` and
+          # `git+https://…` repository.url formats satisfy the provenance check.
+          REPO_URL=$(node -p "require('./package.json').repository.url.replace(/^git\\+/, '')")
           EXPECTED="https://github.com/${GITHUB_REPOSITORY}.git"
           if [ "$REPO_URL" != "$EXPECTED" ]; then
             echo "::error::package.json repository.url must be ${EXPECTED} for npm provenance (got ${REPO_URL})"
@@ -51,7 +53,14 @@ jobs:
         # Use npm CLI (not pnpm publish): OIDC is implemented in npm, not pnpm.
         # Do not set NODE_AUTH_TOKEN here — setup-node wires OIDC from id-token: write.
         # Provenance is generated automatically with trusted publishing.
-        run: npm publish --access public --no-git-checks
+        run: |
+          # Prerelease versions (e.g. 0.4.1-rc.3) must publish under a non-`latest`
+          # dist-tag so `npm install <pkg>` keeps resolving the stable release.
+          VERSION=$(node -p "require('./package.json').version")
+          case "$VERSION" in
+            *-*) npm publish --access public --no-git-checks --tag rc ;;
+            *)   npm publish --access public --no-git-checks ;;
+          esac
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,8 +72,15 @@ jobs:
             echo "Release ${TAG} already exists on ${GITHUB_REPOSITORY}; skipping create."
             exit 0
           fi
+          # Mark prerelease versions (containing a hyphen) as GitHub prereleases.
+          # `case` avoids a non-zero `grep` exit tripping `set -e` in $( … ).
+          PRERELEASE_FLAG=""
+          case "$VER" in
+            *-*) PRERELEASE_FLAG="--prerelease" ;;
+          esac
           gh release create "${TAG}" \
             -R "${GITHUB_REPOSITORY}" \
             --title "${PKG} v${VER}" \
             --generate-notes \
-            --verify-tag
+            --verify-tag \
+            $PRERELEASE_FLAG
