@@ -105,7 +105,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "webhook:serve": "node examples/remote-signer-webhook.mjs",
+    "webhook:serve": "pnpm run build && node examples/remote-signer-webhook.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "prepack": "pnpm run build"

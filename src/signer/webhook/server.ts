@@ -8,11 +8,27 @@ export type RemoteSignerWebhookServerOptions = {
   port?: number;
 };
 
+const DEFAULT_PORT = 8090;
+
+function resolveListenPort(optionsPort: number | undefined, envPort: string | undefined): number {
+  if (optionsPort !== undefined) {
+    return optionsPort;
+  }
+  if (envPort === undefined || envPort === "") {
+    return DEFAULT_PORT;
+  }
+  const parsed = Number(envPort);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
+    return DEFAULT_PORT;
+  }
+  return parsed;
+}
+
 export function startRemoteSignerWebhookServer(
   options: RemoteSignerWebhookServerOptions = {},
 ): Server {
   const config = options.config ?? readOidcRemoteSignerWebhookConfigFromEnv();
-  const port = options.port ?? Number(process.env.PORT ?? 8090);
+  const port = resolveListenPort(options.port, process.env.PORT);
   const addr = options.addr ?? process.env.ADDR ?? "0.0.0.0";
 
   const server = createServer(async (req, res) => {
