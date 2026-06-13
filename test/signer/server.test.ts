@@ -71,7 +71,7 @@ function createIssuerMock(m2mToClientId: Record<string, string>) {
       });
     }
 
-    if (request.url.startsWith(REMOTE_SIGNER_URL)) {
+    if (new URL(request.url).origin === new URL(REMOTE_SIGNER_URL).origin) {
       return json({ ok: true });
     }
 
