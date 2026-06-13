@@ -332,6 +332,14 @@ describe("authenticateWebhookCaller", () => {
     });
     expect(authenticateWebhookCaller(request, "signer-secre")).toBe(false);
   });
+
+  it("rejects non-Bearer Authorization schemes", () => {
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: { Authorization: "Basic signer-secret" },
+    });
+    expect(authenticateWebhookCaller(request, "signer-secret")).toBe(false);
+  });
 });
 
 describe("createApiKeyEndUserVerifier", () => {

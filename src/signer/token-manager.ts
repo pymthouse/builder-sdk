@@ -1,3 +1,5 @@
+import { PmtHouseError } from "../errors.js";
+import { decodeJwtPayload, identityFromJwtPayload } from "./forward.js";
 import type { CachedSignerToken, SignerTokenManagerOptions } from "./types.js";
 
 function cacheKey(clientId: string, externalUserId: string): string {
@@ -37,8 +39,17 @@ export function createSignerTokenManager(options: SignerTokenManagerOptions): Si
     }
 
     const promise = options
-      .mint(externalUserId)
+      .mint(publicClientId, externalUserId)
       .then((token) => {
+        const identity = identityFromJwtPayload(decodeJwtPayload(token.jwt));
+        if (identity.clientId !== publicClientId) {
+          throw new PmtHouseError("minted JWT client_id does not match public client id", {
+            status: 500,
+            code: "invalid_client_id",
+            details: { expected: publicClientId, actual: identity.clientId },
+          });
+        }
+
         const normalized: CachedSignerToken = {
           ...token,
           refreshAt:

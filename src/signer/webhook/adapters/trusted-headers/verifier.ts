@@ -57,7 +57,7 @@ export function identityFromTrustedHeaders(
   }
 
   return {
-    issuer,
+    issuer: normalizeIssuer(issuer),
     client_id: clientId,
     usage_subject: usageSubject,
     usage_subject_type: usageSubjectType,

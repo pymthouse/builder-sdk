@@ -39,7 +39,7 @@ export function createDirectSignerProxyHandler(
   config: DirectSignerProxyConfig,
 ): DirectSignerProxyHandler {
   const tokenManager = createSignerTokenManager({
-    mint: (externalUserId) =>
+    mint: (publicClientId, externalUserId) =>
       mintUserSignerToken({
         issuerUrl: config.pymthouseIssuerUrl,
         m2mClientId: config.pymthouseM2MClientId,

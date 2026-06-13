@@ -57,7 +57,7 @@ export interface MintUserSignerTokenResponse {
 }
 
 export interface SignerTokenManagerOptions {
-  mint: (externalUserId: string) => Promise<CachedSignerToken>;
+  mint: (publicClientId: string, externalUserId: string) => Promise<CachedSignerToken>;
   /** Fraction of TTL after which a proactive refresh runs. Defaults to `0.8`. */
   ttlRefreshRatio?: number;
   fetch?: FetchLike;

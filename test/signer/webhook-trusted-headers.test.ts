@@ -28,6 +28,18 @@ describe("identityFromTrustedHeaders", () => {
       usage_subject_type: "external_user_id",
     });
   });
+
+  it("normalizes trailing slashes on issuer", () => {
+    const identity = identityFromTrustedHeaders(
+      {
+        "X-Livepeer-Usage-Issuer": [`${ISSUER}/`],
+        "X-Livepeer-Client-ID": ["app_abc"],
+        "X-Livepeer-Usage-Subject": ["user-42"],
+      },
+      { expectedIssuer: `${ISSUER}/` },
+    );
+    expect(identity.issuer).toBe(ISSUER);
+  });
 });
 
 describe("createSignerDmzRemoteSignerWebhookConfig", () => {
