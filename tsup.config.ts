@@ -12,6 +12,15 @@ export default defineConfig({
     "device-initiate": "src/device-initiate.ts",
     verify: "src/verify.ts",
     "signer/server": "src/signer/server.ts",
+    "signer/webhook": "src/signer/webhook/index.ts",
+    "signer/webhook/adapters/api-key":
+      "src/signer/webhook/adapters/api-key/index.ts",
+    "signer/webhook/adapters/composite":
+      "src/signer/webhook/adapters/composite/index.ts",
+    "signer/webhook/adapters/oidc":
+      "src/signer/webhook/adapters/oidc/index.ts",
+    "signer/webhook/adapters/trusted-headers":
+      "src/signer/webhook/adapters/trusted-headers/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,
