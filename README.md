@@ -119,11 +119,63 @@ const { manifest, etag, notModified } = await client.getAppManifest({
 });
 ```
 
+## Remote signer identity webhook
+
+For go-livepeer `-remoteSignerWebhookUrl` deployments, builder-sdk provides the
+reference **integration security** webhook that validates end-user credentials and
+returns `UsageIdentity` to the signer (`POST /authorize`).
+
+Transport (signer shared-secret auth, wire protocol) is separate from **end-user
+auth strategies** (`EndUserAuthVerifier`). OIDC/JWT is the default; an API-key
+adapter and a composite "first match" adapter are also provided, and you can
+plug in any custom verifier.
+
+```ts
+import {
+  createApiKeyEndUserVerifier,
+  createOidcRemoteSignerWebhookConfig,
+  createRemoteSignerAuthorizeHandler,
+  type EndUserAuthVerifier,
+} from "@pymthouse/builder-sdk/signer/webhook";
+
+// OIDC (default): Auth0, pymthouse issuer, etc.
+const authorize = createRemoteSignerAuthorizeHandler(
+  createOidcRemoteSignerWebhookConfig({
+    webhookSecret: process.env.WEBHOOK_SECRET!,
+    jwtIssuer: process.env.JWT_ISSUER!,
+    jwtAudience: process.env.JWT_AUDIENCE!,
+    claimMapping: { claimClientId: "azp", usageSubjectType: "auth0_user_id" },
+  }),
+);
+
+// API key: resolve your own keys to a UsageIdentity
+const apiKeyVerifier = createApiKeyEndUserVerifier({
+  issuer: process.env.JWT_ISSUER!,
+  resolveApiKey: async (key) => (await lookup(key)) ?? null,
+});
+
+// Custom provider: implement EndUserAuthVerifier
+const customConfig = {
+  webhookSecret: process.env.WEBHOOK_SECRET!,
+  endUserAuth: {
+    kind: "custom",
+    verify: async ({ authorization, payload, request }) => {
+      // validate provider credentials, return UsageIdentity
+      return { identity: { ... }, expiry: Math.trunc(Date.now() / 1000) + 300 };
+    },
+  } satisfies EndUserAuthVerifier,
+};
+```
+
+Env vars align with `auth0-livepeer` bootstrap output (`.env.livepeer`). For Auth0,
+set `CLAIM_CLIENT_ID=azp` and `USAGE_SUBJECT_TYPE=auth0_user_id`.
+
 ## Subpath exports
 
 | Import | Purpose |
 |--------|---------|
 | `@pymthouse/builder-sdk` | `PmtHouseClient`, usage helpers, manifest parsers, token helpers |
+| `@pymthouse/builder-sdk/signer/webhook` | Identity webhook for `-remoteSignerWebhookUrl` |
 | `@pymthouse/builder-sdk/config` | `isPymthouseConfigured`, `readPymthouseEnv` (Edge/middleware-safe) |
 | `@pymthouse/builder-sdk/tokens` | Signer session TTL, JWT shape helpers, `parseSignerSessionExchange` |
 | `@pymthouse/builder-sdk/format` | Wei formatting for Usage API |
@@ -152,9 +204,9 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 
 **Retail estimates:** `getUsage({ includeRetail: true, groupBy: "pipeline_model" })` adds `endUserBillableUsdMicros` / fiat rows when the active plan has retail rates.
 
-**Signed-ticket ingest (platform metering):** after a signer proxy response, call `ingestSignedTicket` or use `forwardWithOptionalMetering` with `metering: { mode: "pymthouse_hosted" }` on `createSignerProxyServer` — usage is stripped from the client response and POSTed to `POST /api/v1/apps/{id}/usage/signed-tickets`.
+**Metering:** sign directly against the remote signer DMZ with `createDirectSignerProxyHandler` or `forwardDirectSignerRequest`. Usage is emitted asynchronously by go-livepeer to Kafka and ingested by the OpenMeter collector. The PymtHouse `/api/signer/*` HTTP proxy and synchronous HTTP signed-ticket ingest are removed.
 
-**Routing:** `getSignerRouting()` returns `signerApiUrl`, `remoteDmzUrl`, `meteringMode`, and pattern hints for hosted vs platform-ingest vs BYO OpenMeter.
+**Routing:** `getSignerRouting()` returns the remote DMZ URL, webhook URL, and migration hints (`directDmz` / `deprecatedHostedFacade`).
 
 **Allowances (OpenMeter):** Trial and manual USD micros allowance use OpenMeter entitlements — not a Postgres wei ledger.
 

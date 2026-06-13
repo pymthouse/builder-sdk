@@ -241,18 +241,21 @@ export interface SignerRoutingConfig {
   remoteDmzUrl: string | null;
   jwksUri: string;
   identityMode: string;
-  meteringMode: "hosted_ingest" | "platform_ingest";
+  meteringMode: "platform_ingest";
 }
 
 export interface SignerRoutingResponse {
   clientId: string;
   routing: SignerRoutingConfig;
   patterns: {
-    hostedFacade: { description: string; signerApiUrl: string };
-    platformDirectDmz: {
+    directDmz: {
       description: string;
-      remoteDmzUrl: string | null;
-      ingestUrl: string;
+      signerApiUrl: string;
+      webhookUrl: string;
+    };
+    deprecatedHostedFacade: {
+      description: string;
+      signerApiUrl: string | null;
     };
   };
 }
