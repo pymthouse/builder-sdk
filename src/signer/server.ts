@@ -28,24 +28,43 @@ function toResponse(result: DirectSignerBeforeSignResult): Response {
 
 export interface DirectSignerProxyHandler {
   (request: Request): Promise<Response>;
-  getCachedUsage(externalUserId: string): CachedSignerToken | undefined;
-  invalidateToken(externalUserId: string): void;
+  getCachedUsage(
+    publicClientId: string,
+    externalUserId: string,
+  ): CachedSignerToken | undefined;
+  invalidateToken(publicClientId: string, externalUserId: string): void;
 }
 
 export function createDirectSignerProxyHandler(
   config: DirectSignerProxyConfig,
 ): DirectSignerProxyHandler {
+  async function resolveM2MCredentials(
+    publicClientId: string,
+  ): Promise<{ m2mClientId: string; m2mClientSecret: string }> {
+    if (config.resolveM2MCredentials) {
+      return config.resolveM2MCredentials(publicClientId);
+    }
+    return {
+      m2mClientId: config.pymthouseM2MClientId,
+      m2mClientSecret: config.pymthouseM2MClientSecret,
+    };
+  }
+
   const tokenManager = createSignerTokenManager({
-    publicClientId: config.pymthouseClientId,
-    mint: (externalUserId) =>
-      mintUserSignerToken({
+    // `publicClientId` selects the M2M credentials so the minted JWT's
+    // `client_id` matches the cache partition key. The token manager rejects any
+    // minted token whose `client_id` diverges from `publicClientId`.
+    mint: async (publicClientId, externalUserId) => {
+      const { m2mClientId, m2mClientSecret } = await resolveM2MCredentials(publicClientId);
+      return mintUserSignerToken({
         issuerUrl: config.pymthouseIssuerUrl,
-        m2mClientId: config.pymthouseM2MClientId,
-        m2mClientSecret: config.pymthouseM2MClientSecret,
+        m2mClientId,
+        m2mClientSecret,
         externalUserId,
         fetch: config.fetch,
         allowInsecureHttp: config.allowInsecureHttp,
-      }),
+      });
+    },
   });
 
   async function runBeforeSign(
@@ -89,7 +108,17 @@ export function createDirectSignerProxyHandler(
         });
       }
 
-      let token = await tokenManager.getToken(externalUserId);
+      const publicClientId = config.resolvePublicClientId
+        ? (await config.resolvePublicClientId(session)).trim()
+        : config.pymthouseClientId.trim();
+      if (!publicClientId) {
+        throw new PmtHouseError("resolvePublicClientId returned an empty id", {
+          status: 500,
+          code: "invalid_client_id",
+        });
+      }
+
+      let token = await tokenManager.getToken(publicClientId, externalUserId);
       const blocked = await runBeforeSign(token, externalUserId, request);
       if (blocked) {
         return blocked;
@@ -97,8 +126,10 @@ export function createDirectSignerProxyHandler(
 
       let upstream = await forwardOnce(token, request);
       if (upstream.status === 401) {
-        tokenManager.invalidate(externalUserId);
-        token = await tokenManager.getToken(externalUserId, { forceRefresh: true });
+        tokenManager.invalidate(publicClientId, externalUserId);
+        token = await tokenManager.getToken(publicClientId, externalUserId, {
+          forceRefresh: true,
+        });
         const retryBlocked = await runBeforeSign(token, externalUserId, request);
         if (retryBlocked) {
           return retryBlocked;
@@ -112,8 +143,10 @@ export function createDirectSignerProxyHandler(
     }
   } as DirectSignerProxyHandler;
 
-  handler.getCachedUsage = (externalUserId: string) => tokenManager.peek(externalUserId);
-  handler.invalidateToken = (externalUserId: string) => tokenManager.invalidate(externalUserId);
+  handler.getCachedUsage = (publicClientId, externalUserId) =>
+    tokenManager.peek(publicClientId, externalUserId);
+  handler.invalidateToken = (publicClientId, externalUserId) =>
+    tokenManager.invalidate(publicClientId, externalUserId);
 
   return handler;
 }
@@ -172,6 +205,7 @@ export type {
   ForwardDirectSignerRequestOptions,
   ForwardToSignerOptions,
   ForwardToSignerResult,
+  M2MClientCredentials,
   MintSignerTokenFromDeviceTokenOptions,
   MintUserSignerTokenOptions,
   MintUserSignerTokenResponse,
