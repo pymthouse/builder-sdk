@@ -4,6 +4,19 @@ import { describe, expect, it } from "vitest";
 
 import { forwardToSigner } from "../../src/signer/proxy.js";
 
+function createAuthCapturingFetch(): {
+  fetch: typeof fetch;
+  getSeenAuth: () => string | null;
+} {
+  let seenAuth: string | null = null;
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    const headers = new Headers(init?.headers);
+    seenAuth = headers.get("Authorization");
+    return new Response("{}", { status: 200 });
+  };
+  return { fetch: fetchImpl, getSeenAuth: () => seenAuth };
+}
+
 describe("forwardToSigner authorization", () => {
   it("passes explicit authorization through unchanged (non-Bearer schemes)", async () => {
     const cases = [
@@ -14,12 +27,7 @@ describe("forwardToSigner authorization", () => {
     ];
 
     for (const authorization of cases) {
-      let seenAuth: string | null = null;
-      const fetchImpl: typeof fetch = async (_input, init) => {
-        const headers = new Headers(init?.headers);
-        seenAuth = headers.get("Authorization");
-        return new Response("{}", { status: 200 });
-      };
+      const { fetch: fetchImpl, getSeenAuth } = createAuthCapturingFetch();
 
       await forwardToSigner({
         baseUrl: "http://127.0.0.1:8080",
@@ -34,17 +42,12 @@ describe("forwardToSigner authorization", () => {
         fetch: fetchImpl,
       });
 
-      expect(seenAuth).toBe(authorization);
+      expect(getSeenAuth()).toBe(authorization);
     }
   });
 
   it("mints Bearer DMZ JWT when authorization is omitted", async () => {
-    let seenAuth: string | null = null;
-    const fetchImpl: typeof fetch = async (_input, init) => {
-      const headers = new Headers(init?.headers);
-      seenAuth = headers.get("Authorization");
-      return new Response("{}", { status: 200 });
-    };
+    const { fetch: fetchImpl, getSeenAuth } = createAuthCapturingFetch();
 
     await forwardToSigner({
       baseUrl: "http://127.0.0.1:8080",
@@ -55,6 +58,6 @@ describe("forwardToSigner authorization", () => {
       fetch: fetchImpl,
     });
 
-    expect(seenAuth).toBe("Bearer dmz-jwt-token");
+    expect(getSeenAuth()).toBe("Bearer dmz-jwt-token");
   });
 });

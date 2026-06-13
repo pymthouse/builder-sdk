@@ -28,7 +28,7 @@ export function createApiKeyEndUserVerifier(
   const ttl = config.expiryTtlSeconds ?? 60;
 
   return {
-    kind: "custom",
+    kind: "api_key",
     verify: async ({ authorization }) => {
       const token = bearerTokenFromAuthorization(authorization);
       if (prefix && !token.startsWith(prefix)) {

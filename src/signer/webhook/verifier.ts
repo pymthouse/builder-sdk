@@ -19,8 +19,16 @@ export type WebhookAdminRoute = {
   handler: (request: Request) => Promise<Response>;
 };
 
+export type EndUserAuthVerifierKind =
+  | "oidc"
+  | "api_key"
+  | "composite"
+  | "oauth1"
+  | "trusted_headers"
+  | "custom";
+
 export type EndUserAuthVerifier = {
-  kind: "oidc" | "oauth1" | "trusted_headers" | "custom";
+  kind: EndUserAuthVerifierKind;
   verify: (context: EndUserAuthVerifyContext) => Promise<VerifiedEndUserAuth>;
   adminRoutes?: WebhookAdminRoute[];
 };

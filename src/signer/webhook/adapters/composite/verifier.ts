@@ -12,7 +12,7 @@ export function createFirstMatchEndUserVerifier(
   }
 
   return {
-    kind: "custom",
+    kind: "composite",
     verify: async (context) => {
       let lastError: unknown;
       for (const verifier of verifiers) {

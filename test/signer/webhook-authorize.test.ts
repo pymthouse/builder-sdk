@@ -398,6 +398,15 @@ describe("createApiKeyEndUserVerifier", () => {
       }),
     ).rejects.toThrow("invalid api key");
   });
+
+  it("reports kind 'api_key' so server logs are accurate", () => {
+    const verifier = createApiKeyEndUserVerifier({
+      issuer: "https://api.daydream.live",
+      resolveApiKey: async () => null,
+    });
+
+    expect(verifier.kind).toBe("api_key");
+  });
 });
 
 describe("createFirstMatchEndUserVerifier", () => {
@@ -442,6 +451,17 @@ describe("createFirstMatchEndUserVerifier", () => {
     });
 
     expect(verified.identity.usage_subject).toBe("user-primary");
+  });
+
+  it("reports kind 'composite' so server logs are accurate", () => {
+    const verifier = createFirstMatchEndUserVerifier([
+      createApiKeyEndUserVerifier({
+        issuer: "https://api.daydream.live",
+        resolveApiKey: async () => null,
+      }),
+    ]);
+
+    expect(verifier.kind).toBe("composite");
   });
 });
 

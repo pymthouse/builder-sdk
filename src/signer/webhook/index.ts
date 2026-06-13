@@ -20,6 +20,7 @@ export {
 } from "./authorize.js";
 export type {
   EndUserAuthVerifier,
+  EndUserAuthVerifierKind,
   EndUserAuthVerifyContext,
   VerifiedEndUserAuth,
   WebhookAdminRoute,

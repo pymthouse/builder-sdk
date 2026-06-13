@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from "../../../../string-utils.js";
 import type {
   RemoteSignerWebhookConfig,
   WebhookAuthorizeContext,
@@ -15,6 +16,16 @@ import {
 function envTrim(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const value = env[key]?.trim();
   return value || undefined;
+}
+
+/**
+ * Default webhook JWT `aud` derived from the OIDC issuer. Signer JWTs are minted
+ * with `aud` = issuer URL stripped of trailing slashes (see `signerJwtAudience`),
+ * so the webhook must default the audience the same way — otherwise a trailing
+ * slash on `JWT_ISSUER` silently breaks verification when `JWT_AUDIENCE` is unset.
+ */
+export function defaultSignerWebhookJwtAudience(jwtIssuer: string): string {
+  return stripTrailingSlashes(jwtIssuer);
 }
 
 export type OidcRemoteSignerWebhookConfigInput = OidcEndUserAuthConfig & {
@@ -77,7 +88,9 @@ export function readOidcRemoteSignerWebhookConfigFromEnv(
 ): RemoteSignerWebhookConfig {
   const webhookSecret = envTrim(env, "WEBHOOK_SECRET");
   const jwtIssuer = envTrim(env, "JWT_ISSUER");
-  const jwtAudience = envTrim(env, "JWT_AUDIENCE") ?? jwtIssuer;
+  const jwtAudience =
+    envTrim(env, "JWT_AUDIENCE") ??
+    (jwtIssuer ? defaultSignerWebhookJwtAudience(jwtIssuer) : undefined);
 
   if (!webhookSecret) {
     throw new Error("WEBHOOK_SECRET is required");

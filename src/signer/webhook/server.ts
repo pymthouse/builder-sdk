@@ -6,9 +6,31 @@ export type RemoteSignerWebhookServerOptions = {
   config?: RemoteSignerWebhookConfig;
   addr?: string;
   port?: number;
+  /** Max request body size in bytes before the server replies 413. Defaults to 1 MiB. */
+  maxBodyBytes?: number;
 };
 
 const DEFAULT_PORT = 8090;
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
+
+class PayloadTooLargeError extends Error {}
+
+async function readRequestBody(
+  req: NodeJS.ReadableStream,
+  maxBodyBytes: number,
+): Promise<Buffer<ArrayBuffer>> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > maxBodyBytes) {
+      throw new PayloadTooLargeError();
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks);
+}
 
 function resolveListenPort(optionsPort: number | undefined, envPort: string | undefined): number {
   if (optionsPort !== undefined) {
@@ -30,6 +52,7 @@ export function startRemoteSignerWebhookServer(
   const config = options.config ?? readOidcRemoteSignerWebhookConfigFromEnv();
   const port = resolveListenPort(options.port, process.env.PORT);
   const addr = options.addr ?? process.env.ADDR ?? "0.0.0.0";
+  const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
 
   const server = createServer(async (req, res) => {
     try {
@@ -46,11 +69,17 @@ export function startRemoteSignerWebhookServer(
         }
       }
 
-      const chunks: Buffer[] = [];
-      for await (const chunk of req) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      let body: Buffer<ArrayBuffer>;
+      try {
+        body = await readRequestBody(req, maxBodyBytes);
+      } catch (err) {
+        if (err instanceof PayloadTooLargeError) {
+          res.statusCode = 413;
+          res.end("payload too large");
+          return;
+        }
+        throw err;
       }
-      const body = Buffer.concat(chunks);
 
       const request = new Request(url, {
         method: req.method,

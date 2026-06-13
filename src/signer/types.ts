@@ -2,6 +2,11 @@ import type { FetchLike } from "../types.js";
 
 export type SignerDmzGate = "http" | "cli";
 
+export interface M2MClientCredentials {
+  m2mClientId: string;
+  m2mClientSecret: string;
+}
+
 export interface DirectSignerProxyConfig {
   pymthouseIssuerUrl: string;
   /** Public Builder app client id (`app_…`); used for cache keys and JWT `client_id`. */
@@ -11,6 +16,18 @@ export interface DirectSignerProxyConfig {
   remoteSignerUrl: string | URL;
   fetch?: FetchLike;
   allowInsecureHttp?: boolean;
+  /**
+   * Multi-tenant: resolve the M2M credentials used to mint signer JWTs for a
+   * given `publicClientId`. The PymtHouse issuer binds the minted JWT's
+   * `client_id` to the developer app linked to these M2M credentials, so each
+   * tenant's `publicClientId` (from {@link DirectSignerProxyConfig.resolvePublicClientId})
+   * must map to the M2M credentials whose app uses it. The token manager
+   * validates that the minted `client_id` matches the requested `publicClientId`.
+   * Defaults to `pymthouseM2MClientId` / `pymthouseM2MClientSecret`.
+   */
+  resolveM2MCredentials?: (
+    publicClientId: string,
+  ) => M2MClientCredentials | Promise<M2MClientCredentials>;
   /**
    * When set, incoming request paths matching this prefix are rewritten to the remote signer base.
    * Example: `/api/signer/proxy` → remote `/generate-live-payment` when the suffix is empty.

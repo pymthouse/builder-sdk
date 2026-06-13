@@ -38,16 +38,33 @@ export interface DirectSignerProxyHandler {
 export function createDirectSignerProxyHandler(
   config: DirectSignerProxyConfig,
 ): DirectSignerProxyHandler {
+  async function resolveM2MCredentials(
+    publicClientId: string,
+  ): Promise<{ m2mClientId: string; m2mClientSecret: string }> {
+    if (config.resolveM2MCredentials) {
+      return config.resolveM2MCredentials(publicClientId);
+    }
+    return {
+      m2mClientId: config.pymthouseM2MClientId,
+      m2mClientSecret: config.pymthouseM2MClientSecret,
+    };
+  }
+
   const tokenManager = createSignerTokenManager({
-    mint: (publicClientId, externalUserId) =>
-      mintUserSignerToken({
+    // `publicClientId` selects the M2M credentials so the minted JWT's
+    // `client_id` matches the cache partition key. The token manager rejects any
+    // minted token whose `client_id` diverges from `publicClientId`.
+    mint: async (publicClientId, externalUserId) => {
+      const { m2mClientId, m2mClientSecret } = await resolveM2MCredentials(publicClientId);
+      return mintUserSignerToken({
         issuerUrl: config.pymthouseIssuerUrl,
-        m2mClientId: config.pymthouseM2MClientId,
-        m2mClientSecret: config.pymthouseM2MClientSecret,
+        m2mClientId,
+        m2mClientSecret,
         externalUserId,
         fetch: config.fetch,
         allowInsecureHttp: config.allowInsecureHttp,
-      }),
+      });
+    },
   });
 
   async function runBeforeSign(
@@ -189,6 +206,7 @@ export type {
   ForwardDirectSignerRequestOptions,
   ForwardToSignerOptions,
   ForwardToSignerResult,
+  M2MClientCredentials,
   MintSignerTokenFromDeviceTokenOptions,
   MintUserSignerTokenOptions,
   MintUserSignerTokenResponse,
