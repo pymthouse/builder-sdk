@@ -27,6 +27,52 @@ function urlEncodedBodyString(body: BodyInit | null | undefined): string {
   return typeof body === "string" ? body : "";
 }
 
+const TOKEN_EXCHANGE_ISSUER = "https://pymthouse.example/api/v1/oidc";
+
+function mockOidcTokenExchangeFetch(): ReturnType<typeof vi.fn<FetchLike>> {
+  return vi.fn<FetchLike>(async (input: RequestInfo | URL) => {
+    if (requestInputHref(input).includes(".well-known/openid-configuration")) {
+      return Response.json({
+        issuer: TOKEN_EXCHANGE_ISSUER,
+        token_endpoint: `${TOKEN_EXCHANGE_ISSUER}/token`,
+        jwks_uri: `${TOKEN_EXCHANGE_ISSUER}/jwks`,
+      });
+    }
+    return Response.json({
+      access_token: "signer.jwt",
+      expires_in: 300,
+      scope: "sign:job",
+      balanceUsdMicros: "0",
+      lifetimeGrantedUsdMicros: "0",
+    });
+  });
+}
+
+function runMintSignerTokenFromDeviceToken(
+  fetchImpl: ReturnType<typeof vi.fn<FetchLike>>,
+  audience?: string,
+) {
+  return mintSignerTokenFromDeviceToken({
+    issuerUrl: TOKEN_EXCHANGE_ISSUER,
+    m2mClientId: "m2m_client",
+    m2mClientSecret: "secret",
+    deviceToken: "user.jwt",
+    audience,
+    fetch: fetchImpl,
+    allowInsecureHttp: true,
+  });
+}
+
+function tokenExchangeRequestParams(
+  fetchImpl: ReturnType<typeof vi.fn<FetchLike>>,
+): URLSearchParams {
+  const tokenCall = fetchImpl.mock.calls.find((call) =>
+    requestInputHref(call[0]).includes("/token"),
+  ) as [RequestInfo | URL, RequestInit | undefined] | undefined;
+  expect(tokenCall).toBeDefined();
+  return new URLSearchParams(urlEncodedBodyString(tokenCall?.[1]?.body));
+}
+
 describe("device exchange helpers", () => {
   it("extracts nested and top-level access tokens", () => {
     expect(
@@ -108,81 +154,25 @@ describe("createDeviceExchangeHandler", () => {
 
 describe("mintSignerTokenFromDeviceToken", () => {
   it("calls token endpoint with signer audience exchange grant", async () => {
-    const fetchImpl = vi.fn<FetchLike>(async (input: RequestInfo | URL) => {
-      const url = requestInputHref(input);
-      if (url.includes(".well-known/openid-configuration")) {
-        return Response.json({
-          issuer: "https://pymthouse.example/api/v1/oidc",
-          token_endpoint: "https://pymthouse.example/api/v1/oidc/token",
-          jwks_uri: "https://pymthouse.example/api/v1/oidc/jwks",
-        });
-      }
-      return Response.json({
-        access_token: "signer.jwt",
-        expires_in: 300,
-        scope: "sign:job",
-        balanceUsdMicros: "4995190",
-        lifetimeGrantedUsdMicros: "5000000",
-      });
-    });
+    const fetchImpl = mockOidcTokenExchangeFetch();
 
-    const result = await mintSignerTokenFromDeviceToken({
-      issuerUrl: "https://pymthouse.example/api/v1/oidc",
-      m2mClientId: "m2m_client",
-      m2mClientSecret: "secret",
-      deviceToken: "user.jwt",
-      fetch: fetchImpl,
-      allowInsecureHttp: true,
-    });
+    const result = await runMintSignerTokenFromDeviceToken(fetchImpl);
 
     expect(result.access_token).toBe("signer.jwt");
     expect(fetchImpl).toHaveBeenCalledTimes(2);
-    const tokenCall = fetchImpl.mock.calls.find((call) =>
-      requestInputHref(call[0]).includes("/token"),
-    ) as [RequestInfo | URL, RequestInit | undefined] | undefined;
-    expect(tokenCall).toBeDefined();
-    const init = tokenCall?.[1];
-    expect(init).toBeDefined();
-    const params = new URLSearchParams(urlEncodedBodyString(init?.body));
+    const params = tokenExchangeRequestParams(fetchImpl);
     expect(params.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:token-exchange");
     expect(params.get("subject_token")).toBe("user.jwt");
-    expect(params.get("audience")).toBe("https://pymthouse.example/api/v1/oidc");
-    expect(params.get("resource")).toBe("https://pymthouse.example/api/v1/oidc");
+    expect(params.get("audience")).toBe(TOKEN_EXCHANGE_ISSUER);
+    expect(params.get("resource")).toBe(TOKEN_EXCHANGE_ISSUER);
   });
 
   it("uses an explicit audience override when provided", async () => {
-    const fetchImpl = vi.fn<FetchLike>(async (input: RequestInfo | URL) => {
-      const url = requestInputHref(input);
-      if (url.includes(".well-known/openid-configuration")) {
-        return Response.json({
-          issuer: "https://pymthouse.example/api/v1/oidc",
-          token_endpoint: "https://pymthouse.example/api/v1/oidc/token",
-          jwks_uri: "https://pymthouse.example/api/v1/oidc/jwks",
-        });
-      }
-      return Response.json({
-        access_token: "signer.jwt",
-        expires_in: 300,
-        scope: "sign:job",
-        balanceUsdMicros: "0",
-        lifetimeGrantedUsdMicros: "0",
-      });
-    });
+    const fetchImpl = mockOidcTokenExchangeFetch();
 
-    await mintSignerTokenFromDeviceToken({
-      issuerUrl: "https://pymthouse.example/api/v1/oidc",
-      m2mClientId: "m2m_client",
-      m2mClientSecret: "secret",
-      deviceToken: "user.jwt",
-      audience: "https://custom.audience",
-      fetch: fetchImpl,
-      allowInsecureHttp: true,
-    });
+    await runMintSignerTokenFromDeviceToken(fetchImpl, "https://custom.audience");
 
-    const tokenCall = fetchImpl.mock.calls.find((call) =>
-      requestInputHref(call[0]).includes("/token"),
-    ) as [RequestInfo | URL, RequestInit | undefined] | undefined;
-    const params = new URLSearchParams(urlEncodedBodyString(tokenCall?.[1]?.body));
+    const params = tokenExchangeRequestParams(fetchImpl);
     expect(params.get("audience")).toBe("https://custom.audience");
     expect(params.get("resource")).toBe("https://custom.audience");
   });
