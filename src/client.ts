@@ -603,11 +603,13 @@ export class PmtHouseClient {
     startDate: string;
     endDate: string;
     maxEndUserIds?: number;
+    includeRetail?: boolean;
   }): Promise<MeScopeUsagePayload> {
     const usageByUser = await this.getUsage({
       startDate: input.startDate,
       endDate: input.endDate,
       groupBy: "user",
+      includeRetail: input.includeRetail,
     });
     const userIds = getEndUserIdsForExternalUser(usageByUser, input.externalUserId);
     const cap = input.maxEndUserIds ?? DEFAULT_MAX_END_USER_IDS;
@@ -619,6 +621,7 @@ export class PmtHouseClient {
           endDate: input.endDate,
           groupBy: "pipeline_model",
           userId,
+          includeRetail: input.includeRetail,
         }),
       ),
     );
