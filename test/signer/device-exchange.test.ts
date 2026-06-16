@@ -146,7 +146,45 @@ describe("mintSignerTokenFromDeviceToken", () => {
     const params = new URLSearchParams(urlEncodedBodyString(init?.body));
     expect(params.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:token-exchange");
     expect(params.get("subject_token")).toBe("user.jwt");
-    expect(params.get("audience")).toBe("livepeer-remote-signer");
+    expect(params.get("audience")).toBe("https://pymthouse.example/api/v1/oidc");
+    expect(params.get("resource")).toBe("https://pymthouse.example/api/v1/oidc");
+  });
+
+  it("uses an explicit audience override when provided", async () => {
+    const fetchImpl = vi.fn<FetchLike>(async (input: RequestInfo | URL) => {
+      const url = requestInputHref(input);
+      if (url.includes(".well-known/openid-configuration")) {
+        return Response.json({
+          issuer: "https://pymthouse.example/api/v1/oidc",
+          token_endpoint: "https://pymthouse.example/api/v1/oidc/token",
+          jwks_uri: "https://pymthouse.example/api/v1/oidc/jwks",
+        });
+      }
+      return Response.json({
+        access_token: "signer.jwt",
+        expires_in: 300,
+        scope: "sign:job",
+        balanceUsdMicros: "0",
+        lifetimeGrantedUsdMicros: "0",
+      });
+    });
+
+    await mintSignerTokenFromDeviceToken({
+      issuerUrl: "https://pymthouse.example/api/v1/oidc",
+      m2mClientId: "m2m_client",
+      m2mClientSecret: "secret",
+      deviceToken: "user.jwt",
+      audience: "https://custom.audience",
+      fetch: fetchImpl,
+      allowInsecureHttp: true,
+    });
+
+    const tokenCall = fetchImpl.mock.calls.find((call) =>
+      requestInputHref(call[0]).includes("/token"),
+    ) as [RequestInfo | URL, RequestInit | undefined] | undefined;
+    const params = new URLSearchParams(urlEncodedBodyString(tokenCall?.[1]?.body));
+    expect(params.get("audience")).toBe("https://custom.audience");
+    expect(params.get("resource")).toBe("https://custom.audience");
   });
 });
 
