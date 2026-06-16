@@ -118,6 +118,13 @@
     "vitest": "^4.1.4"
   },
   "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "overrides": {
+      "vite": "7.3.5",
+      "esbuild": "0.28.1",
+      "js-yaml": "4.2.0"
+    }
+  },
   "license": "MIT",
   "keywords": [
     "pymthouse",
