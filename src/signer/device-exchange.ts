@@ -5,10 +5,7 @@ import { stripTrailingSlashes } from "../string-utils.js";
 import { readJsonObjectFromResponse } from "./fetch-json.js";
 import { readExpiresIn, readStringField } from "./json-fields.js";
 import { signerHandlerErrorResponse } from "./handler-errors.js";
-import {
-  LIVEPEER_REMOTE_SIGNER_AUDIENCE,
-  parseMintUserSignerTokenResponse,
-} from "./mint-token.js";
+import { parseMintUserSignerTokenResponse } from "./mint-token.js";
 import type {
   DeviceExchangeHandlerConfig,
   DeviceExchangeHandlerConfigRemote,
@@ -132,7 +129,11 @@ export async function mintSignerTokenFromDeviceToken(
     });
   }
 
-  const audience = options.audience?.trim() || LIVEPEER_REMOTE_SIGNER_AUDIENCE;
+  // Default the token-exchange audience/resource to the OIDC issuer URL, which is
+  // what the IdP's token-exchange grant validates against (e.g. pymthouse's
+  // signerJwtAudience()). The legacy "livepeer-remote-signer" literal is rejected
+  // with invalid_target by current issuers.
+  const audience = options.audience?.trim() || issuerUrl;
   const params = new URLSearchParams({
     grant_type: TOKEN_EXCHANGE_GRANT,
     subject_token: options.deviceToken,
