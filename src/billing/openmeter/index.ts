@@ -18,3 +18,7 @@ export {
   type ProvisionBillingCustomerInput,
   type ProvisionBillingCustomerResult,
 } from "./provision.js";
+export {
+  createOpenMeterBillingProvisioner,
+  type CreateOpenMeterBillingProvisionerInput,
+} from "./billing-provisioner.js";

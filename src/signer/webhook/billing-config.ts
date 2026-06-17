@@ -1,45 +1,45 @@
-import type { ManagementClient } from "auth0";
-import type { OpenMeter } from "@openmeter/sdk";
 import {
   createAuth0RemoteSignerWebhookConfig,
   type Auth0RemoteSignerWebhookConfigInput,
 } from "./adapters/auth0/config.js";
 import { createCustomerProvisionAdminRoutes } from "./admin/customers.js";
 import { createLazyBillingProvisionHook } from "./admin/lazy-provision.js";
+import type { BillingProvisionerPort } from "./ports/billing.js";
+import type { UserProvisionerPort } from "./ports/user.js";
 import type { RemoteSignerWebhookConfig } from "./authorize.js";
 
 export type Auth0BillingWebhookConfigInput = Auth0RemoteSignerWebhookConfigInput & {
-  openMeterClient: OpenMeter;
-  billingClientId: string;
-  planKey: string;
-  auth0Management?: ManagementClient;
-  defaultAuth0Connection?: string;
+  billingProvisioner: BillingProvisionerPort;
+  userProvisioner?: UserProvisionerPort;
+  /** Fallback Konnect customer clientId for single-tenant hosts. */
+  defaultBillingClientId?: string;
   strictBillingProvision?: boolean;
   onBillingProvisionError?: Parameters<typeof createLazyBillingProvisionHook>[0]["onError"];
+  /** Mount POST /admin/customers on the webhook (optional; omit for platform-owned admin API). */
+  adminRoutes?: boolean;
 };
 
 export function createAuth0BillingWebhookConfig(
   input: Auth0BillingWebhookConfigInput,
 ): RemoteSignerWebhookConfig {
-  const adminRoutes = createCustomerProvisionAdminRoutes({
-    webhookSecret: input.webhookSecret,
-    openMeterClient: input.openMeterClient,
-    clientId: input.billingClientId,
-    planKey: input.planKey,
-    auth0Management: input.auth0Management,
-    defaultConnection: input.defaultAuth0Connection,
-  });
-
   const {
-    openMeterClient,
-    billingClientId,
-    planKey,
-    auth0Management,
-    defaultAuth0Connection,
+    billingProvisioner,
+    userProvisioner,
+    defaultBillingClientId,
     strictBillingProvision,
     onBillingProvisionError,
+    adminRoutes: mountAdminRoutes = true,
     ...webhookInput
   } = input;
+
+  const adminRoutes = mountAdminRoutes
+    ? createCustomerProvisionAdminRoutes({
+        webhookSecret: input.webhookSecret,
+        billingProvisioner,
+        userProvisioner,
+        defaultClientId: defaultBillingClientId,
+      })
+    : undefined;
 
   const config = createAuth0RemoteSignerWebhookConfig({
     ...webhookInput,
@@ -47,9 +47,8 @@ export function createAuth0BillingWebhookConfig(
   });
 
   const afterVerify = createLazyBillingProvisionHook({
-    openMeterClient,
-    clientId: billingClientId,
-    planKey,
+    billingProvisioner,
+    defaultClientId: defaultBillingClientId,
     strict: strictBillingProvision,
     onError: onBillingProvisionError,
   });

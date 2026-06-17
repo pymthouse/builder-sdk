@@ -63,11 +63,19 @@ export {
   type CreateCustomerProvisionAdminRoutesInput,
   type ProvisionCustomerRequestBody,
 } from "./admin/customers.js";
-export { createLazyBillingProvisionHook } from "./admin/lazy-provision.js";
+export { createLazyBillingProvisionHook, type LazyBillingProvisionHookInput } from "./admin/lazy-provision.js";
 export {
   createAuth0BillingWebhookConfig,
   type Auth0BillingWebhookConfigInput,
 } from "./billing-config.js";
+export type {
+  BillingProvisionerPort,
+  ProvisionBillingCustomerInput,
+  ProvisionBillingCustomerResult,
+  EnsurePlatformUserInput,
+  EnsurePlatformUserResult,
+  UserProvisionerPort,
+} from "./ports/index.js";
 
 import type { OidcRemoteSignerWebhookConfigInput } from "./adapters/oidc/config.js";
 import { handleRemoteSignerRefreshJwks as refreshJwks } from "./adapters/oidc/verifier.js";

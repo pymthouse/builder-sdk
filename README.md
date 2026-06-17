@@ -6,6 +6,8 @@ TypeScript client for the **PymtHouse Builder API**, **Usage API**, and **OIDC i
 
 OAuth/OIDC protocol calls use **[oauth4webapi](https://github.com/panva/oauth4webapi)** (OpenID-certified relying-party implementation). PymtHouse-specific REST paths and helpers live in `PmtHouseClient`.
 
+**Architecture:** builder-sdk is a stateless protocol/contract layer. Tenant billing config, credential storage, and platform admin APIs live in host apps (`pymthouse`, `clearinghouse`). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Install
 
 ```bash
@@ -176,6 +178,8 @@ set `CLAIM_CLIENT_ID=azp` and `USAGE_SUBJECT_TYPE=auth0_user_id`.
 |--------|---------|
 | `@pymthouse/builder-sdk` | `PmtHouseClient`, usage helpers, manifest parsers, token helpers |
 | `@pymthouse/builder-sdk/signer/webhook` | Identity webhook for `-remoteSignerWebhookUrl` |
+| `@pymthouse/builder-sdk/billing/openmeter` | Customer key helpers, optional OpenMeter/Konnect adapter |
+| `@pymthouse/builder-sdk/auth0/management` | Auth0 Management helpers + user provisioner adapter |
 | `@pymthouse/builder-sdk/config` | `isPymthouseConfigured`, `readPymthouseEnv` (Edge/middleware-safe) |
 | `@pymthouse/builder-sdk/tokens` | Signer session TTL, JWT shape helpers, `parseSignerSessionExchange` |
 | `@pymthouse/builder-sdk/format` | Wei formatting for Usage API |

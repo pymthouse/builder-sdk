@@ -1,11 +1,10 @@
-import type { OpenMeter } from "@openmeter/sdk";
-import { provisionBillingCustomer } from "../../../billing/openmeter/provision.js";
+import type { BillingProvisionerPort } from "../ports/billing.js";
 import type { WebhookAuthorizeContext } from "../authorize.js";
 
 export type LazyBillingProvisionHookInput = {
-  openMeterClient: OpenMeter;
-  clientId: string;
-  planKey: string;
+  billingProvisioner: BillingProvisionerPort;
+  /** Fallback when JWT identity lacks client_id (single-tenant hosts). */
+  defaultClientId?: string;
   strict?: boolean;
   onError?: (error: unknown, context: WebhookAuthorizeContext) => void;
 };
@@ -13,12 +12,11 @@ export type LazyBillingProvisionHookInput = {
 export function createLazyBillingProvisionHook(
   input: LazyBillingProvisionHookInput,
 ): (context: WebhookAuthorizeContext) => Promise<void> {
-  const resolvedClientId = input.clientId.trim();
-  const planKey = input.planKey.trim();
+  const defaultClientId = input.defaultClientId?.trim();
 
   return async (context) => {
     const externalUserId = context.identity.usage_subject?.trim();
-    const clientId = context.identity.client_id?.trim() || resolvedClientId;
+    const clientId = context.identity.client_id?.trim() || defaultClientId;
 
     if (!clientId || !externalUserId) {
       const err = new Error("missing client_id or usage_subject for billing provision");
@@ -30,10 +28,9 @@ export function createLazyBillingProvisionHook(
     }
 
     try {
-      await provisionBillingCustomer(input.openMeterClient, {
+      await input.billingProvisioner.provisionCustomer({
         clientId,
         externalUserId,
-        planKey,
       });
     } catch (err) {
       if (input.strict) {
