@@ -3,6 +3,12 @@ export {
   parseOpenMeterCustomerKey,
 } from "./customer-key.js";
 export {
+  createOpenMeterClient,
+  isKonnectMeteringUrl,
+  normalizeKonnectMeteringUrl,
+  type CreateOpenMeterClientInput,
+} from "./client.js";
+export {
   ensureOpenMeterCustomer,
   ensureOpenMeterCustomerForAppUser,
   type OpenMeterCustomerIdentity,
