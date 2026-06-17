@@ -21,6 +21,10 @@ export default defineConfig({
       "src/signer/webhook/adapters/oidc/index.ts",
     "signer/webhook/adapters/trusted-headers":
       "src/signer/webhook/adapters/trusted-headers/index.ts",
+    "signer/webhook/adapters/auth0":
+      "src/signer/webhook/adapters/auth0/index.ts",
+    "auth0/management": "src/auth0/index.ts",
+    "billing/openmeter": "src/billing/openmeter/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

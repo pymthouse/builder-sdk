@@ -52,6 +52,22 @@ export {
   identityFromTrustedHeaders,
   type TrustedHeadersEndUserAuthConfig,
 } from "./adapters/trusted-headers/index.js";
+export {
+  AUTH0_WEBHOOK_IDENTITY_CLAIMS,
+  createAuth0RemoteSignerWebhookConfig,
+  readAuth0RemoteSignerWebhookConfigFromEnv,
+  type Auth0RemoteSignerWebhookConfigInput,
+} from "./adapters/auth0/index.js";
+export {
+  createCustomerProvisionAdminRoutes,
+  type CreateCustomerProvisionAdminRoutesInput,
+  type ProvisionCustomerRequestBody,
+} from "./admin/customers.js";
+export { createLazyBillingProvisionHook } from "./admin/lazy-provision.js";
+export {
+  createAuth0BillingWebhookConfig,
+  type Auth0BillingWebhookConfigInput,
+} from "./billing-config.js";
 
 import type { OidcRemoteSignerWebhookConfigInput } from "./adapters/oidc/config.js";
 import { handleRemoteSignerRefreshJwks as refreshJwks } from "./adapters/oidc/verifier.js";

@@ -1,6 +1,6 @@
 {
   "name": "@pymthouse/builder-sdk",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "PymtHouse Builder API and OIDC client (OpenID-certified oauth4webapi)",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -81,6 +81,21 @@
       "types": "./dist/signer/webhook/adapters/trusted-headers.d.ts",
       "import": "./dist/signer/webhook/adapters/trusted-headers.js",
       "require": "./dist/signer/webhook/adapters/trusted-headers.cjs"
+    },
+    "./signer/webhook/adapters/auth0": {
+      "types": "./dist/signer/webhook/adapters/auth0.d.ts",
+      "import": "./dist/signer/webhook/adapters/auth0.js",
+      "require": "./dist/signer/webhook/adapters/auth0.cjs"
+    },
+    "./auth0/management": {
+      "types": "./dist/auth0/management.d.ts",
+      "import": "./dist/auth0/management.js",
+      "require": "./dist/auth0/management.cjs"
+    },
+    "./billing/openmeter": {
+      "types": "./dist/billing/openmeter.d.ts",
+      "import": "./dist/billing/openmeter.js",
+      "require": "./dist/billing/openmeter.cjs"
     }
   },
   "files": [
@@ -105,6 +120,8 @@
     "prepack": "pnpm run build"
   },
   "dependencies": {
+    "@openmeter/sdk": "^1.0.0-beta.228",
+    "auth0": "^4.28.0",
     "oauth4webapi": "^3.8.5"
   },
   "devDependencies": {
