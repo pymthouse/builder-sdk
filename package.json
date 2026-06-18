@@ -37,6 +37,11 @@
       "import": "./dist/tokens.js",
       "require": "./dist/tokens.cjs"
     },
+    "./gateway-startup-token": {
+      "types": "./dist/gateway-startup-token.d.ts",
+      "import": "./dist/gateway-startup-token.js",
+      "require": "./dist/gateway-startup-token.cjs"
+    },
     "./device": {
       "types": "./dist/device.d.ts",
       "import": "./dist/device.js",

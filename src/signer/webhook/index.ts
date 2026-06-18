@@ -28,8 +28,11 @@ export type {
 export { bearerTokenFromAuthorization, optionalBearerToken } from "./bearer.js";
 export {
   createApiKeyEndUserVerifier,
+  createPymthouseApiKeyEndUserVerifier,
   type ApiKeyEndUserVerifierConfig,
   type ApiKeyResolveResult,
+  type PymthouseApiKeyEndUserVerifierConfig,
+  type PymthouseApiKeyResolveResult,
 } from "./adapters/api-key/index.js";
 export { createFirstMatchEndUserVerifier } from "./adapters/composite/index.js";
 export {

@@ -3,6 +3,7 @@ import type {
   RemoteSignerWebhookConfig,
   WebhookAuthorizeContext,
 } from "../../authorize.js";
+import type { EndUserAuthVerifier } from "../../verifier.js";
 import { createFirstMatchEndUserVerifier } from "../composite/verifier.js";
 import {
   createTrustedHeadersEndUserVerifier,
@@ -37,6 +38,8 @@ export type SignerDmzRemoteSignerWebhookConfigInput =
     /** When true (default), accept Apache DMZ X-Livepeer-* identity headers. */
     dmzTrustedHeaders?: boolean;
     trustedHeaders?: Omit<TrustedHeadersEndUserAuthConfig, "expectedIssuer">;
+    /** Optional pmth_* api-key verifier (tried before trusted-headers / OIDC). */
+    apiKeyVerifier?: EndUserAuthVerifier;
   };
 
 export function createOidcRemoteSignerWebhookConfig(
@@ -62,19 +65,29 @@ export function createSignerDmzRemoteSignerWebhookConfig(
     afterVerify,
     dmzTrustedHeaders = true,
     trustedHeaders,
+    apiKeyVerifier,
     ...oidcConfig
   } = input;
   const oidcVerifier = createOidcEndUserVerifier(oidcConfig);
+
+  const verifiers: EndUserAuthVerifier[] = [];
+  if (apiKeyVerifier) {
+    verifiers.push(apiKeyVerifier);
+  }
+  if (dmzTrustedHeaders !== false) {
+    verifiers.push(
+      createTrustedHeadersEndUserVerifier({
+        expectedIssuer: oidcConfig.jwtIssuer,
+        ...trustedHeaders,
+      }),
+    );
+  }
+  verifiers.push(oidcVerifier);
+
   const endUserAuth =
-    dmzTrustedHeaders === false
-      ? oidcVerifier
-      : createFirstMatchEndUserVerifier([
-          createTrustedHeadersEndUserVerifier({
-            expectedIssuer: oidcConfig.jwtIssuer,
-            ...trustedHeaders,
-          }),
-          oidcVerifier,
-        ]);
+    verifiers.length === 1
+      ? verifiers[0]!
+      : createFirstMatchEndUserVerifier(verifiers);
 
   return {
     webhookSecret: oidcConfig.webhookSecret,

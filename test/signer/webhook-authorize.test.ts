@@ -412,6 +412,36 @@ describe("createApiKeyEndUserVerifier", () => {
   });
 });
 
+describe("createPymthouseApiKeyEndUserVerifier", () => {
+  it("resolves pmth_ keys to external_user_id identity", async () => {
+    const { createPymthouseApiKeyEndUserVerifier } = await import(
+      "../../src/signer/webhook/adapters/api-key/pymthouse-verifier.js"
+    );
+    const verifier = createPymthouseApiKeyEndUserVerifier({
+      issuer: "https://staging.pymthouse.com/api/v1/oidc",
+      resolveApiKey: async (apiKey) => {
+        if (apiKey === "pmth_live_test") {
+          return { externalUserId: "user@example.com", publicClientId: "app_test" };
+        }
+        return null;
+      },
+    });
+
+    const verified = await verifier.verify({
+      authorization: "Bearer pmth_live_test",
+      payload: { headers: { Authorization: ["Bearer pmth_live_test"] } },
+      request: new Request("http://localhost/authorize"),
+    });
+
+    expect(verified.identity).toEqual({
+      issuer: "https://staging.pymthouse.com/api/v1/oidc",
+      client_id: "app_test",
+      usage_subject: "user@example.com",
+      usage_subject_type: "external_user_id",
+    });
+  });
+});
+
 describe("createFirstMatchEndUserVerifier", () => {
   it("falls back to second verifier when first rejects", async () => {
     const verifier = createFirstMatchEndUserVerifier([
