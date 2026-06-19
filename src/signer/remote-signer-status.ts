@@ -6,6 +6,7 @@ export const REMOTE_SIGNER_HTTP_STATUS = {
   PRICE_EXCEEDED: 481,
   NO_TICKETS: 482,
   INSUFFICIENT_BALANCE: 483,
+  BILLING_UNAVAILABLE: 503,
 } as const;
 
 /** Machine-readable error codes forwarded through the identity webhook wire protocol. */
@@ -23,7 +24,7 @@ export function insufficientBalanceError(message = "insufficient balance") {
 
 export function billingUnavailableError(message = "billing unavailable") {
   return new PmtHouseError(message, {
-    status: 503,
+    status: REMOTE_SIGNER_HTTP_STATUS.BILLING_UNAVAILABLE,
     code: REMOTE_SIGNER_ERROR_CODE.BILLING_UNAVAILABLE,
   });
 }
