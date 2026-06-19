@@ -28,6 +28,8 @@ export type PaymentWebhookRequest = {
 export type PaymentWebhookResponse = {
   status?: number;
   reason?: string;
+  /** Machine-readable reject code forwarded to go-livepeer signer clients. */
+  code?: string;
   expiry?: number;
   /** Opaque identity binding persisted by go-livepeer RemotePaymentState. */
   auth_id?: string;

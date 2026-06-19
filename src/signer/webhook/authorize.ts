@@ -69,12 +69,18 @@ function paymentWebhookJson(
   });
 }
 
-function rejectStatusFromError(err: unknown): { status: number; reason: string } {
+function rejectStatusFromError(
+  err: unknown,
+): { status: number; reason: string; code?: string } {
   if (err instanceof PmtHouseError) {
-    return {
+    const reject: { status: number; reason: string; code?: string } = {
       status: err.status >= 400 && err.status < 600 ? err.status : 403,
       reason: err.message,
     };
+    if (err.code && err.code !== "pymthouse_error") {
+      reject.code = err.code;
+    }
+    return reject;
   }
   const reason = err instanceof Error ? err.message : "authorization rejected";
   return { status: 403, reason };
@@ -127,11 +133,12 @@ export async function handleRemoteSignerAuthorize(
       identity: verified.identity,
     });
   } catch (err) {
-    const { status, reason } = rejectStatusFromError(err);
-    return paymentWebhookJson(200, {
-      status,
-      reason,
-    });
+    const { status, reason, code } = rejectStatusFromError(err);
+    const body: PaymentWebhookResponse = { status, reason };
+    if (code) {
+      body.code = code;
+    }
+    return paymentWebhookJson(200, body);
   }
 }
 
