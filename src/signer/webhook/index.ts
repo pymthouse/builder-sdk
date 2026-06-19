@@ -39,6 +39,12 @@ export {
 } from "./adapters/oidc/verifier.js";
 export { authorizationFromWebhookPayload, headerValueFromWebhookPayload } from "./payload.js";
 export {
+  REMOTE_SIGNER_ERROR_CODE,
+  REMOTE_SIGNER_HTTP_STATUS,
+  billingUnavailableError,
+  insufficientBalanceError,
+} from "../remote-signer-status.js";
+export {
   createOidcRemoteSignerWebhookConfig,
   createSignerDmzRemoteSignerWebhookConfig,
   readOidcRemoteSignerWebhookConfigFromEnv,

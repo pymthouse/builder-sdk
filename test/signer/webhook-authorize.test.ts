@@ -11,6 +11,7 @@ import {
   handleRemoteSignerAuthorize,
   handleRemoteSignerRefreshJwks,
   identityFromWebhookClaims,
+  insufficientBalanceError,
   routeRemoteSignerWebhookRequest,
   type EndUserAuthVerifyContext,
   type RemoteSignerWebhookConfig,
@@ -226,9 +227,35 @@ describe("handleRemoteSignerAuthorize", () => {
       },
     });
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { status: number; reason: string };
+    const body = (await response.json()) as { status: number; reason: string; code?: string };
     expect(body.status).toBe(403);
     expect(body.reason).toContain("out of balance");
+    expect(body.code).toBeUndefined();
+  });
+
+  it("returns status 483 and code for insufficient balance", async () => {
+    const request = new Request("http://localhost/authorize", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer signer-secret",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        headers: { Authorization: ["Bearer good-token"] },
+      }),
+    });
+
+    const response = await handleRemoteSignerAuthorize(request, {
+      ...baseConfig,
+      afterVerify: async () => {
+        throw insufficientBalanceError();
+      },
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { status: number; reason: string; code: string };
+    expect(body.status).toBe(483);
+    expect(body.reason).toBe("insufficient balance");
+    expect(body.code).toBe("insufficient_balance");
   });
 
   it("rejects invalid end-user token with status 403 in body", async () => {
