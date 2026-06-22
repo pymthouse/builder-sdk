@@ -353,6 +353,16 @@ export class PmtHouseClient {
   async exchangeForSignerSession(input: {
     userJwt: string;
     resource?: string;
+    /**
+     * When true, omit the RFC 8707 `resource` parameter entirely. This selects
+     * the documented PymtHouse gateway/opaque signer-session exchange
+     * (long-lived `pmth_*` token) rather than the signer-JWT path that a
+     * `resource = issuer` indicator routes to. Takes precedence over
+     * {@link resource}.
+     */
+    omitResource?: boolean;
+    /** Optional `scope` for the exchange (e.g. `sign:job`). Omitted when unset. */
+    scope?: string;
   }): Promise<TokenExchangeResponse> {
     const as = await loadAuthorizationServer(this.issuerUrl, this.fetchImpl, {
       allowInsecureHttp: this.allowInsecureHttp,
@@ -363,11 +373,16 @@ export class PmtHouseClient {
     params.set("subject_token", input.userJwt);
     params.set("subject_token_type", SUBJECT_ACCESS_TOKEN_TYPE);
     params.set("requested_token_type", REQUESTED_ACCESS_TOKEN_TYPE);
-    const resourceCandidate =
-      typeof input.resource === "string" && input.resource.trim() !== ""
-        ? input.resource.trim()
-        : this.issuerUrl;
-    params.set("resource", stripTrailingSlashes(resourceCandidate));
+    if (typeof input.scope === "string" && input.scope.trim() !== "") {
+      params.set("scope", input.scope.trim());
+    }
+    if (!input.omitResource) {
+      const resourceCandidate =
+        typeof input.resource === "string" && input.resource.trim() !== ""
+          ? input.resource.trim()
+          : this.issuerUrl;
+      params.set("resource", stripTrailingSlashes(resourceCandidate));
+    }
 
     try {
       const response = await genericTokenEndpointRequest(
@@ -715,20 +730,33 @@ export class PmtHouseClient {
   }
 
   /**
-   * Upsert an external user, mint a short-lived JWT, and exchange for an opaque signer session.
+   * Upsert an external user, mint a short-lived JWT, and exchange it for a
+   * long-lived opaque (`pmth_*`) signer session.
+   *
+   * Performs the *documented* remote-signer-session exchange (see
+   * `builder-api.md` → "Remote signer session exchange"): the RFC 8693 token
+   * exchange is sent with `scope=sign:job` and **no `resource` indicator**,
+   * which selects the PymtHouse gateway/opaque path. A prior implementation set
+   * `resource = issuer`, which routed to the signer-JWT path and returned a JWT
+   * that {@link parseSignerSessionExchange} then rejected as non-opaque.
    */
   async mintSignerSessionForExternalUser(
     input: MintSignerSessionForExternalUserInput,
   ): Promise<SignerSessionToken> {
+    const scope = input.scope ?? SIGN_JOB_SCOPE;
     await this.upsertAppUser({
       externalUserId: input.externalUserId,
       email: input.email,
       status: "active",
     });
-    const exchange = await this.mintUserSignerSessionToken({
+    const userToken = await this.mintUserAccessToken({
       externalUserId: input.externalUserId,
-      scope: input.scope ?? SIGN_JOB_SCOPE,
-      resource: this.issuerUrl,
+      scope,
+    });
+    const exchange = await this.exchangeForSignerSession({
+      userJwt: userToken.access_token,
+      omitResource: true,
+      scope,
     });
     return parseSignerSessionExchange(exchange);
   }
