@@ -134,8 +134,8 @@ export function pickConflictingStringAliases(
     })
     .filter((entry): entry is { key: string; value: string } => entry !== null);
   const first = values[0];
-  const conflict = values.find((entry) => entry.value !== first?.value);
-  if (first && conflict) {
+  const hasConflict = values.some((entry) => entry.value !== first?.value);
+  if (first && hasConflict) {
     return {
       ok: false,
       message: `Conflicting ${keys.join("/")} in request body`,
@@ -167,8 +167,8 @@ export function pickConflictingNumberAliases(
     })
     .filter((entry): entry is { key: string; value: number } => entry !== null);
   const first = values[0];
-  const conflict = values.find((entry) => entry.value !== first?.value);
-  if (first && conflict) {
+  const hasConflict = values.some((entry) => entry.value !== first?.value);
+  if (first && hasConflict) {
     return {
       ok: false,
       message: `Conflicting ${keys.join("/")} in request body`,

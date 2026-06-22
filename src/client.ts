@@ -92,7 +92,7 @@ export class PmtHouseClient {
   private readonly m2mClientId: string;
   private readonly m2mClientSecret: string;
   private readonly fetchImpl: FetchLike;
-  private readonly logger?: PmtHouseClientOptions["logger"];
+  private readonly logger: PmtHouseClientOptions["logger"];
   private readonly allowInsecureHttp: boolean;
 
   constructor(options: PmtHouseClientOptions) {
@@ -835,7 +835,7 @@ export class PmtHouseClient {
     const raw = await response.text();
     const ct = response.headers.get("content-type") ?? "";
     const looksJson = ct.includes("application/json") || ct.includes("json");
-    const parsed = raw && looksJson ? this.safeParseJson(raw) : raw ? null : null;
+    const parsed = raw && looksJson ? this.safeParseJson(raw) : null;
 
     if (!response.ok) {
       const details = (parsed ?? {}) as Record<string, unknown>;

@@ -32,6 +32,13 @@ export interface PollDeviceTokenOptions {
   }) => void;
 }
 
+function toAbortError(reason: unknown): Error {
+  if (reason instanceof Error) {
+    return reason;
+  }
+  return new Error(typeof reason === "string" ? reason : "Aborted");
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(resolve, ms);
@@ -39,15 +46,51 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       "abort",
       () => {
         clearTimeout(t);
-        reject(
-          signal.reason instanceof Error
-            ? signal.reason
-            : new Error(typeof signal.reason === "string" ? signal.reason : "Aborted"),
-        );
+        reject(toAbortError(signal.reason));
       },
       { once: true },
     );
   });
+}
+
+type DeviceTokenPoll =
+  | { done: true; tokens: import("oauth4webapi").TokenEndpointResponse }
+  | { done: false; slowDown: boolean };
+
+/** Single device-token poll: resolves to tokens, or signals pending/slow_down. */
+async function attemptDeviceTokenPoll(
+  as: import("oauth4webapi").AuthorizationServer,
+  client: Client,
+  deviceCode: string,
+  httpOpts: Record<symbol, unknown>,
+): Promise<DeviceTokenPoll> {
+  let tokenResponse: Response;
+  try {
+    tokenResponse = await deviceCodeGrantRequest(
+      as,
+      client,
+      None(),
+      deviceCode,
+      httpOpts as import("oauth4webapi").TokenEndpointRequestOptions,
+    );
+  } catch (e) {
+    throw mapOAuthError(e);
+  }
+
+  try {
+    const tokens = await processDeviceCodeResponse(as, client, tokenResponse);
+    return { done: true, tokens };
+  } catch (e) {
+    if (e instanceof ResponseBodyError) {
+      if (e.error === "authorization_pending") {
+        return { done: false, slowDown: false };
+      }
+      if (e.error === "slow_down") {
+        return { done: false, slowDown: true };
+      }
+    }
+    throw mapOAuthError(e);
+  }
 }
 
 /**
@@ -116,9 +159,7 @@ export async function pollDeviceToken(
 
   while (Date.now() < deadline) {
     if (options.signal?.aborted) {
-      throw options.signal.reason instanceof Error
-        ? options.signal.reason
-        : new Error("Aborted");
+      throw toAbortError(options.signal.reason);
     }
 
     if (!firstPoll) {
@@ -126,32 +167,12 @@ export async function pollDeviceToken(
     }
     firstPoll = false;
 
-    let tokenResponse: Response;
-    try {
-      tokenResponse = await deviceCodeGrantRequest(
-        as,
-        client,
-        None(),
-        dar.device_code,
-        httpOpts as import("oauth4webapi").TokenEndpointRequestOptions,
-      );
-    } catch (e) {
-      throw mapOAuthError(e);
+    const poll = await attemptDeviceTokenPoll(as, client, dar.device_code, httpOpts);
+    if (poll.done) {
+      return poll.tokens;
     }
-
-    try {
-      return await processDeviceCodeResponse(as, client, tokenResponse);
-    } catch (e) {
-      if (e instanceof ResponseBodyError) {
-        if (e.error === "authorization_pending") {
-          continue;
-        }
-        if (e.error === "slow_down") {
-          pollIntervalMs += 5000;
-          continue;
-        }
-      }
-      throw mapOAuthError(e);
+    if (poll.slowDown) {
+      pollIntervalMs += 5000;
     }
   }
 

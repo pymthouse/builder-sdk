@@ -10,9 +10,9 @@ import { stripTrailingSlashes } from "./string-utils.js";
 function assertEnvModuleServerOnly(): void {
   if (
     typeof globalThis !== "undefined" &&
-    typeof (globalThis as { window?: unknown }).window !== "undefined"
+    (globalThis as { window?: unknown }).window !== undefined
   ) {
-    throw new Error(
+    throw new TypeError(
       "@pymthouse/builder-sdk/env is server-only: do not import createPmtHouseClientFromEnv or getPymthouseBaseUrl in client-side code. Use a Route Handler, Server Action, or other server/runtime; keep M2M credentials out of the browser bundle.",
     );
   }
@@ -24,7 +24,7 @@ let cachedClient: PmtHouseClient | null = null;
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
-  if (value && value.trim()) {
+  if (value?.trim()) {
     return value.trim();
   }
 
