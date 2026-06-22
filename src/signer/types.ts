@@ -30,7 +30,8 @@ export interface DirectSignerProxyConfig {
   ) => M2MClientCredentials | Promise<M2MClientCredentials>;
   /**
    * When set, incoming request paths matching this prefix are rewritten to the remote signer base.
-   * Example: `/api/signer/proxy` → remote `/generate-live-payment` when the suffix is empty.
+   * Example: `/api/my-bff/signer` → remote `/generate-live-payment` when the suffix is empty.
+   * This is for integrator-hosted BFF routes, not dashboard `/api/signer/*` proxy paths.
    */
   proxyPathPrefix?: string;
   /** Remote path used when the proxied suffix is empty. Defaults to `/generate-live-payment`. */
@@ -154,6 +155,7 @@ export interface DeviceExchangeResponse {
 }
 
 export interface ExchangeDeviceTokenForSignerOptions {
+  /** Platform/dashboard origin for JWT exchange only (`POST .../api/signer/device/exchange`). */
   facadeUrl: string;
   deviceToken: string;
   scope?: string;
@@ -230,6 +232,7 @@ export interface ApiKeyExchangeHandlerConfig {
 }
 
 export interface ExchangeApiKeyForSignerOptions {
+  /** Platform/dashboard origin for JWT exchange only (`POST .../api/pymthouse/keys/exchange`). */
   facadeUrl: string;
   apiKey: string;
   scope?: string;

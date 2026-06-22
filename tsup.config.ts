@@ -12,6 +12,7 @@ export default defineConfig({
     "device-initiate": "src/device-initiate.ts",
     verify: "src/verify.ts",
     "signer/server": "src/signer/server.ts",
+    "signer/gateway": "src/signer/gateway.ts",
     "signer/webhook": "src/signer/webhook/index.ts",
     "signer/webhook/adapters/api-key":
       "src/signer/webhook/adapters/api-key/index.ts",

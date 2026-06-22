@@ -82,7 +82,7 @@ function createIssuerMock(m2mToClientId: Record<string, string>) {
 }
 
 function signRequest(tenant: string): Request {
-  return new Request("http://localhost/api/signer/proxy", {
+  return new Request("http://localhost/api/my-bff/signer", {
     method: "POST",
     headers: { "x-tenant": tenant, "content-type": "application/json" },
     body: JSON.stringify({ hello: "world" }),

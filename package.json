@@ -1,6 +1,6 @@
 {
   "name": "@pymthouse/builder-sdk",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "PymtHouse Builder API and OIDC client (OpenID-certified oauth4webapi)",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -56,6 +56,11 @@
       "types": "./dist/signer/server.d.ts",
       "import": "./dist/signer/server.js",
       "require": "./dist/signer/server.cjs"
+    },
+    "./signer/gateway": {
+      "types": "./dist/signer/gateway.d.ts",
+      "import": "./dist/signer/gateway.js",
+      "require": "./dist/signer/gateway.cjs"
     },
     "./signer/webhook": {
       "types": "./dist/signer/webhook.d.ts",

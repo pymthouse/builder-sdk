@@ -58,14 +58,14 @@ describe("forwardDirectSignerRequest", () => {
     };
 
     const response = await forwardDirectSignerRequest({
-      request: new Request("https://platform.example/api/signer/proxy/generate-live-payment?x=1", {
+      request: new Request("https://platform.example/api/my-bff/signer/generate-live-payment?x=1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hello: "world" }),
       }),
       remoteSignerUrl: "https://signer.example/",
       jwt,
-      proxyPathPrefix: "/api/signer/proxy",
+      proxyPathPrefix: "/api/my-bff/signer",
       fetch: fetchImpl,
     });
 
