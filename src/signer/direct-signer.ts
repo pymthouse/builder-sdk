@@ -19,7 +19,7 @@ export type DirectSignerPath =
  */
 export function signerEndpointUrl(
   signerBaseUrl: string,
-  path: DirectSignerPath | string,
+  path: DirectSignerPath | (string & {}),
 ): string {
   const base = stripTrailingSlashes(signerBaseUrl.trim());
   if (!base) {

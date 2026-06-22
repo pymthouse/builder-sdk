@@ -83,13 +83,13 @@ function optionalString(value: unknown, label: string): string | undefined {
 /** Serialize a value to JSON and standard (non-url-safe) base64. */
 function encodeBase64Json(value: unknown): string {
   const json = JSON.stringify(value);
-  return typeof Buffer !== "undefined"
-    ? Buffer.from(json, "utf8").toString("base64")
-    : btoa(
-        Array.from(new TextEncoder().encode(json), (c) => String.fromCharCode(c)).join(
-          "",
-        ),
-      );
+  if (typeof Buffer === "undefined") {
+    const binary = Array.from(new TextEncoder().encode(json), (c) =>
+      String.fromCodePoint(c),
+    ).join("");
+    return btoa(binary);
+  }
+  return Buffer.from(json, "utf8").toString("base64");
 }
 
 /** Decode a standard base64 string back into the parsed JSON value it encoded. */
@@ -97,12 +97,13 @@ function decodeBase64Json(token: string): unknown {
   const trimmed = requireString(token, "gateway token");
   let json: string;
   try {
-    json =
-      typeof Buffer !== "undefined"
-        ? Buffer.from(trimmed, "base64").toString("utf8")
-        : new TextDecoder().decode(
-            Uint8Array.from(atob(trimmed), (c) => c.charCodeAt(0)),
-          );
+    if (typeof Buffer === "undefined") {
+      json = new TextDecoder().decode(
+        Uint8Array.from(atob(trimmed), (c) => c.codePointAt(0) ?? 0),
+      );
+    } else {
+      json = Buffer.from(trimmed, "base64").toString("utf8");
+    }
   } catch {
     throw new PmtHouseError("Invalid gateway token: expected base64-encoded JSON", {
       status: 400,
@@ -152,7 +153,7 @@ export function buildGatewayToken(input: GatewayTokenInput): string {
     });
   }
 
-  const signerHeaders: Record<string, string> = { ...(input.signerHeaders ?? {}) };
+  const signerHeaders: Record<string, string> = { ...input.signerHeaders };
   const bundle: GatewayTokenBundle = { signer };
 
   const discovery = optionalString(input.discovery, "discovery URL");
