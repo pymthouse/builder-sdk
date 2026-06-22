@@ -67,7 +67,11 @@ const signerResponse = await fetch(target, {
 console.log("Signer status:", signerResponse.status);
 if (!signerResponse.ok) {
   const body = await signerResponse.text();
-  console.error("Direct signer request failed:", body.slice(0, 500));
+  console.error("Direct signer request failed", {
+    status: signerResponse.status,
+    statusText: signerResponse.statusText,
+    responseBytes: body.length,
+  });
   process.exit(1);
 }
 

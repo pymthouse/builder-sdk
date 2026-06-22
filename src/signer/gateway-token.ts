@@ -42,21 +42,50 @@ export interface GatewayTokenInput {
   auth?: GatewayTokenAuth;
 }
 
+/**
+ * Coerce an externally supplied value to a trimmed string, throwing a
+ * consistent {@link PmtHouseError} (rather than a raw `TypeError`) when the
+ * input is not a string. Used to guard public entry points against untyped
+ * JavaScript callers.
+ *
+ * @param value - The value to validate.
+ * @param label - Human-readable description of the field for the error message.
+ * @returns The trimmed string value.
+ * @throws {PmtHouseError} When `value` is not a string.
+ */
+function requireString(value: unknown, label: string): string {
+  if (typeof value !== "string") {
+    throw new PmtHouseError(`${label} must be a string`, {
+      status: 400,
+      code: "invalid_gateway_token",
+    });
+  }
+  return value.trim();
+}
+
+/** Serialize a value to JSON and standard (non-url-safe) base64. */
 function encodeBase64Json(value: unknown): string {
   const json = JSON.stringify(value);
   return typeof Buffer !== "undefined"
     ? Buffer.from(json, "utf8").toString("base64")
-    : btoa(Array.from(new TextEncoder().encode(json), (c) => String.fromCharCode(c)).join(""));
+    : btoa(
+        Array.from(new TextEncoder().encode(json), (c) => String.fromCharCode(c)).join(
+          "",
+        ),
+      );
 }
 
+/** Decode a standard base64 string back into the parsed JSON value it encoded. */
 function decodeBase64Json(token: string): unknown {
-  const trimmed = token.trim();
+  const trimmed = requireString(token, "gateway token");
   let json: string;
   try {
     json =
       typeof Buffer !== "undefined"
         ? Buffer.from(trimmed, "base64").toString("utf8")
-        : new TextDecoder().decode(Uint8Array.from(atob(trimmed), (c) => c.charCodeAt(0)));
+        : new TextDecoder().decode(
+            Uint8Array.from(atob(trimmed), (c) => c.charCodeAt(0)),
+          );
   } catch {
     throw new PmtHouseError("Invalid gateway token: expected base64-encoded JSON", {
       status: 400,
@@ -73,6 +102,7 @@ function decodeBase64Json(token: string): unknown {
   }
 }
 
+/** Drop blank keys and non-string values from a header map, returning undefined when empty. */
 function normalizeStringMap(
   map: Record<string, string> | undefined,
 ): Record<string, string> | undefined {
@@ -91,7 +121,13 @@ function normalizeStringMap(
  * base64-encodes it.
  */
 export function buildGatewayToken(input: GatewayTokenInput): string {
-  const signer = input.signer.trim();
+  if (input === null || typeof input !== "object") {
+    throw new PmtHouseError("buildGatewayToken requires an input object", {
+      status: 400,
+      code: "invalid_gateway_token",
+    });
+  }
+  const signer = requireString(input.signer, "signer URL");
   if (!signer) {
     throw new PmtHouseError("buildGatewayToken requires a non-empty signer URL", {
       status: 400,
@@ -114,7 +150,7 @@ export function buildGatewayToken(input: GatewayTokenInput): string {
   }
 
   if (input.auth?.kind === "signerJwt") {
-    const accessToken = input.auth.accessToken.trim();
+    const accessToken = requireString(input.auth.accessToken, "signerJwt accessToken");
     if (!accessToken) {
       throw new PmtHouseError("signerJwt auth requires a non-empty accessToken", {
         status: 400,
@@ -123,7 +159,7 @@ export function buildGatewayToken(input: GatewayTokenInput): string {
     }
     signerHeaders.Authorization = `Bearer ${accessToken}`;
   } else if (input.auth?.kind === "pmthApiKey") {
-    const apiKey = input.auth.apiKey.trim();
+    const apiKey = requireString(input.auth.apiKey, "pmthApiKey apiKey");
     if (!apiKey) {
       throw new PmtHouseError("pmthApiKey auth requires a non-empty apiKey", {
         status: 400,
@@ -190,7 +226,9 @@ export type MintGatewayTokenOptions = MintGatewayTokenBase &
  * Convenience: mint a signer JWT (either from M2M `client_credentials` or by
  * exchanging a `pmth_*` API key) and assemble a `signerJwt`-mode gateway token.
  */
-export async function mintGatewayToken(options: MintGatewayTokenOptions): Promise<string> {
+export async function mintGatewayToken(
+  options: MintGatewayTokenOptions,
+): Promise<string> {
   let accessToken: string;
   if (options.source === "m2m") {
     const minted = await mintUserSignerToken({

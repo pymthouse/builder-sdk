@@ -100,7 +100,8 @@ describe("mintGatewayToken", () => {
   it("mints via M2M client_credentials and embeds the JWT", async () => {
     const issuer = "https://pymthouse.example/api/v1/oidc";
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
-      const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const href =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (href.includes(".well-known/openid-configuration")) {
         return Response.json({
           issuer,
@@ -129,5 +130,56 @@ describe("mintGatewayToken", () => {
 
     const bundle = decodeGatewayToken(token);
     expect(bundle.signer_headers).toEqual({ Authorization: "Bearer minted-jwt" });
+  });
+
+  it("mints via apiKey exchange and embeds the signer JWT", async () => {
+    const issuer = "https://pymthouse.example/api/v1/oidc";
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const href =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (href.includes(".well-known/openid-configuration")) {
+        return Response.json({
+          issuer,
+          token_endpoint: `${issuer}/token`,
+          jwks_uri: `${issuer}/jwks`,
+        });
+      }
+      if (href.includes("/auth/api-key/token")) {
+        return Response.json({
+          access_token: "user-access-token",
+          expires_in: 900,
+          scope: "sign:job",
+        });
+      }
+      return Response.json({
+        access_token: "minted-signer-jwt",
+        expires_in: 900,
+        scope: "sign:job",
+        balanceUsdMicros: "0",
+        lifetimeGrantedUsdMicros: "0",
+      });
+    });
+
+    const token = await mintGatewayToken({
+      source: "apiKey",
+      signer: SIGNER_URL,
+      issuerUrl: issuer,
+      publicClientId: "public-client",
+      apiKey: "pmth_live_123",
+      m2mClientId: "m2m-client",
+      m2mClientSecret: "m2m-secret",
+      fetch: fetchImpl,
+      allowInsecureHttp: true,
+    });
+
+    const bundle = decodeGatewayToken(token);
+    expect(bundle.signer_headers).toEqual({ Authorization: "Bearer minted-signer-jwt" });
+    expect(
+      fetchImpl.mock.calls.some(([req]) => {
+        const href =
+          typeof req === "string" ? req : req instanceof URL ? req.href : req.url;
+        return href.includes("/api/v1/apps/public-client/auth/api-key/token");
+      }),
+    ).toBe(true);
   });
 });

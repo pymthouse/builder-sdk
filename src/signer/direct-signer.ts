@@ -43,10 +43,29 @@ export function signerUrlFromExchangeResponse(
 /**
  * Reject dashboard-style signer proxy bases. Exchange facades mint JWTs only;
  * signing RPCs must target the remote signer DMZ directly.
+ *
+ * Parses the URL and inspects its pathname rather than running a regex over the
+ * raw string, which both avoids super-linear backtracking on adversarial input
+ * and rejects every `/api/signer` and `/api/signer/*` route (not just the three
+ * known endpoint suffixes).
+ *
+ * @param signerBaseUrl - Absolute signer base URL to validate.
+ * @throws {PmtHouseError} When the URL is not absolute or points at a dashboard
+ * `/api/signer` proxy path.
  */
 export function assertDirectSignerBaseUrl(signerBaseUrl: string): void {
-  const normalized = signerBaseUrl.trim().replace(/\/+$/, "");
-  if (/\/api\/signer\/(sign-orchestrator-info|generate-live-payment|discover-orchestrators)$/.test(normalized)) {
+  let parsed: URL;
+  try {
+    parsed = new URL(signerBaseUrl.trim());
+  } catch {
+    throw new PmtHouseError("signer URL must be an absolute http(s) URL", {
+      status: 400,
+      code: "invalid_signer_url",
+    });
+  }
+
+  const pathname = stripTrailingSlashes(parsed.pathname);
+  if (pathname === "/api/signer" || pathname.startsWith("/api/signer/")) {
     throw new PmtHouseError(
       "signer URL must be the remote signer DMZ base, not a dashboard /api/signer/* proxy path. " +
         "Exchange at the platform facade, then call signer endpoints directly using signerUrl from the exchange response.",
