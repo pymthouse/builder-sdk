@@ -63,6 +63,23 @@ function requireString(value: unknown, label: string): string {
   return value.trim();
 }
 
+/**
+ * Like {@link requireString} but treats `null`/`undefined` as "not provided"
+ * (returning `undefined`) while still rejecting non-string values with a
+ * consistent {@link PmtHouseError}.
+ *
+ * @param value - The optional value to validate.
+ * @param label - Human-readable description of the field for the error message.
+ * @returns The trimmed string, or `undefined` when absent/empty.
+ * @throws {PmtHouseError} When `value` is present but not a string.
+ */
+function optionalString(value: unknown, label: string): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  return requireString(value, label) || undefined;
+}
+
 /** Serialize a value to JSON and standard (non-url-safe) base64. */
 function encodeBase64Json(value: unknown): string {
   const json = JSON.stringify(value);
@@ -138,12 +155,20 @@ export function buildGatewayToken(input: GatewayTokenInput): string {
   const signerHeaders: Record<string, string> = { ...(input.signerHeaders ?? {}) };
   const bundle: GatewayTokenBundle = { signer };
 
-  if (input.discovery?.trim()) {
-    bundle.discovery = input.discovery.trim();
+  const discovery = optionalString(input.discovery, "discovery URL");
+  if (discovery) {
+    bundle.discovery = discovery;
   }
 
-  const orchestrators = (input.orchestrators ?? [])
-    .map((entry) => entry.trim())
+  const rawOrchestrators = input.orchestrators ?? [];
+  if (!Array.isArray(rawOrchestrators)) {
+    throw new PmtHouseError("orchestrators must be an array of strings", {
+      status: 400,
+      code: "invalid_gateway_token",
+    });
+  }
+  const orchestrators = rawOrchestrators
+    .map((entry) => requireString(entry, "orchestrator entry"))
     .filter((entry) => entry.length > 0);
   if (orchestrators.length > 0) {
     bundle.orchestrators = orchestrators;
@@ -167,8 +192,9 @@ export function buildGatewayToken(input: GatewayTokenInput): string {
       });
     }
     bundle.api_key = apiKey;
-    if (input.auth.billing?.trim()) {
-      bundle.billing = input.auth.billing.trim();
+    const billing = optionalString(input.auth.billing, "pmthApiKey billing URL");
+    if (billing) {
+      bundle.billing = billing;
     }
   }
 
