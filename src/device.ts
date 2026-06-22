@@ -41,15 +41,25 @@ function toAbortError(reason: unknown): Error {
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(t);
-        reject(toAbortError(signal.reason));
-      },
-      { once: true },
-    );
+    if (signal?.aborted) {
+      reject(toAbortError(signal.reason));
+      return;
+    }
+
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", onAbort);
+      reject(toAbortError(signal!.reason));
+    };
+
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    if (signal) {
+      signal.addEventListener("abort", onAbort);
+    }
   });
 }
 
