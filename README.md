@@ -70,19 +70,77 @@ For advanced flows that already have a user JWT, call
 
 ### Dashboard API keys (long-lived `pmth_*`)
 
-Create a key in the Dashboard **API keys** page, then exchange it for a signer
-session without repeating device login:
+Create a key in the Dashboard **API keys** page, then exchange it for a short-lived
+signer JWT without repeating device login. The facade mints credentials only;
+signing RPCs go **directly to the remote signer DMZ** returned as `signerUrl`.
+
+```ts
+import {
+  DIRECT_SIGNER_PATHS,
+  exchangeApiKeyForSigner,
+  signerEndpointUrl,
+} from "@pymthouse/builder-sdk/signer/server";
+
+const session = await exchangeApiKeyForSigner({
+  facadeUrl: process.env.DASHBOARD_ORIGIN!, // exchange only
+  apiKey: process.env.PMTH_API_KEY!,
+  scope: "sign:job",
+  clientId: process.env.PYMTHOUSE_PUBLIC_CLIENT_ID!,
+});
+
+const signerBase = session.signerUrl!; // remote signer DMZ from exchange
+const orchInfo = await fetch(
+  signerEndpointUrl(signerBase, DIRECT_SIGNER_PATHS.signOrchestratorInfo),
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ /* ... */ }),
+  },
+);
+```
+
+Or via `PmtHouseClient` (returns `signerUrl` when using `facadeUrl`):
 
 ```ts
 const session = await client.exchangeApiKeyForSignerSession({
   apiKey: process.env.PMTH_API_KEY!,
-  facadeUrl: process.env.DASHBOARD_ORIGIN!, // e.g. https://dashboard.example.com
+  facadeUrl: process.env.DASHBOARD_ORIGIN!,
   scope: "sign:job",
 });
-// session.access_token — opaque signer bearer for discovery / gateway
+// session.access_token — short-lived signer JWT
+// session.signerUrl — remote signer DMZ base (call signer RPCs here directly)
 ```
 
 See `examples/stream-with-api-key.mjs` for a minimal Node script.
+
+### Exchange then direct signer (architecture)
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant Facade as PlatformFacade
+  participant Issuer as PymtHouseIssuer
+  participant Signer as RemoteSignerDMZ
+
+  Client->>Facade: POST /api/pymthouse/keys/exchange (pmth_*)
+  Facade->>Issuer: api-key token + M2M token exchange
+  Issuer-->>Facade: short-lived signer JWT + signerUrl
+  Facade-->>Client: access_token + signerUrl
+  Client->>Signer: POST {signerUrl}/sign-orchestrator-info (Bearer JWT)
+```
+
+**Do not** point `signerUrl` or gateway `--token signer` at dashboard
+`/api/signer/*` proxy routes. Those proxies are removed; use the remote signer
+DMZ URL from the exchange response (or `getSignerRouting().remoteDmzUrl`).
+
+**Migration:** if you previously configured
+`signer: https://dashboard.example.com/api/signer`, change to the remote signer
+base returned by exchange (`signerUrl`) or routing (`remoteDmzUrl`). Keep
+`facadeUrl` / `billing` pointed at the dashboard/platform origin for exchange
+only (`/api/pymthouse/keys/exchange` or `/api/signer/device/exchange`).
 
 Integrators can use the higher-level workflow helpers:
 
@@ -170,11 +228,64 @@ const customConfig = {
 Env vars align with `auth0-livepeer` bootstrap output (`.env.livepeer`). For Auth0,
 set `CLAIM_CLIENT_ID=azp` and `USAGE_SUBJECT_TYPE=auth0_user_id`.
 
+## Gateway `--token` helper
+
+The [livepeer-python-gateway](https://github.com/livepeer/livepeer-python-gateway)
+`--token` is a **base64-encoded JSON** bundle (not a JWT). `buildGatewayToken`
+assembles one client-side from values you already have, and `mintGatewayToken`
+mints a signer JWT first as a convenience.
+
+Two gateway auth modes:
+
+- **`signerJwt`** — you mint a signer JWT and forward it as
+  `signer_headers.Authorization = "Bearer <jwt>"`. The gateway only reads the
+  JWT `exp`; it cannot refresh on its own (pre-mint or refresh externally).
+- **`pmthApiKey`** — the gateway holds a `pmth_*` API key + the billing URL and
+  performs the exchange + auto-refresh itself (`api_key` + `billing` top-level).
+
+```ts
+import {
+  buildGatewayToken,
+  mintGatewayToken,
+} from "@pymthouse/builder-sdk/signer/gateway";
+
+// Pure assembly: pre-minted signer JWT mode
+const token = buildGatewayToken({
+  signer: "https://signer.example/generate-live-payment",
+  auth: { kind: "signerJwt", accessToken: userSignerJwt },
+});
+
+// Pure assembly: gateway self-refreshes via platform exchange, signs directly to signer
+const apiKeyToken = buildGatewayToken({
+  signer: "https://signer.example",
+  auth: {
+    kind: "pmthApiKey",
+    apiKey: process.env.PMTH_API_KEY!,
+    billing: "https://dashboard.example.com",
+  },
+});
+
+// Convenience: mint a signer JWT (M2M client_credentials) then assemble
+const minted = await mintGatewayToken({
+  source: "m2m",
+  signer: "https://signer.example/generate-live-payment",
+  issuerUrl: process.env.PYMTHOUSE_ISSUER_URL!,
+  m2mClientId: process.env.PYMTHOUSE_M2M_CLIENT_ID!,
+  m2mClientSecret: process.env.PYMTHOUSE_M2M_CLIENT_SECRET!,
+  externalUserId: "naap-user-123",
+});
+// Pass `token` straight to the gateway: `--token <token>`
+```
+
+Use `decodeGatewayToken(token)` to inspect a bundle in tests/debugging.
+
 ## Subpath exports
 
 | Import | Purpose |
 |--------|---------|
 | `@pymthouse/builder-sdk` | `PmtHouseClient`, usage helpers, manifest parsers, token helpers |
+| `@pymthouse/builder-sdk/signer/server` | Exchange handlers, direct signer URL helpers, minting, `buildGatewayToken`/`mintGatewayToken` |
+| `@pymthouse/builder-sdk/signer/gateway` | Gateway `--token` assembler (`buildGatewayToken`, `mintGatewayToken`, `decodeGatewayToken`) |
 | `@pymthouse/builder-sdk/signer/webhook` | Identity webhook for `-remoteSignerWebhookUrl` |
 | `@pymthouse/builder-sdk/config` | `isPymthouseConfigured`, `readPymthouseEnv` (Edge/middleware-safe) |
 | `@pymthouse/builder-sdk/tokens` | Signer session TTL, JWT shape helpers, `parseSignerSessionExchange` |
@@ -204,7 +315,11 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 
 **Retail estimates:** `getUsage({ includeRetail: true, groupBy: "pipeline_model" })` adds `endUserBillableUsdMicros` / fiat rows when the active plan has retail rates.
 
-**Metering:** sign directly against the remote signer DMZ with `createDirectSignerProxyHandler` or `forwardDirectSignerRequest`. Usage is emitted asynchronously by go-livepeer to Kafka and ingested by the OpenMeter collector. The PymtHouse `/api/signer/*` HTTP proxy and synchronous HTTP signed-ticket ingest are removed.
+**Metering:** after exchange, sign directly against the remote signer DMZ with
+`forwardToSigner`, `forwardDirectSignerRequest`, or plain `fetch` to
+`{signerUrl}/{path}`. Usage is emitted asynchronously by go-livepeer to Kafka
+and ingested by the OpenMeter collector. Dashboard `/api/signer/*` HTTP proxy
+routes and synchronous HTTP signed-ticket ingest are removed.
 
 **Routing:** `getSignerRouting()` returns the remote DMZ URL, webhook URL, and migration hints (`directDmz` / `deprecatedHostedFacade`).
 

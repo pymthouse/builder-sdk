@@ -247,8 +247,14 @@ export class PmtHouseClient {
   }
 
   /**
-   * Exchange a dashboard API key for a signer session via a trusted facade (recommended)
-   * or directly when M2M credentials are available on this client.
+   * Exchange a dashboard API key for a short-lived signer JWT via a trusted facade.
+   *
+   * `facadeUrl` is used only for `POST {facadeUrl}/api/pymthouse/keys/exchange`.
+   * After exchange, call signer RPCs directly at `signerUrl` from the response
+   * (e.g. `{signerUrl}/sign-orchestrator-info`), not via dashboard `/api/signer/*`.
+   *
+   * When M2M credentials are available on this client, omit `facadeUrl` to exchange
+   * directly against the PymtHouse issuer.
    */
   async exchangeApiKeyForSignerSession(input: {
     apiKey: string;
@@ -270,6 +276,7 @@ export class PmtHouseClient {
         expires_in: exchanged.expires_in,
         scope: exchanged.scope,
         issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+        signerUrl: exchanged.signerUrl,
       };
     }
 

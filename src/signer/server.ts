@@ -176,6 +176,18 @@ export {
   parseApiKeyExchangeRequestBody,
 } from "./api-key-exchange.js";
 export {
+  assertDirectSignerBaseUrl,
+  DIRECT_SIGNER_PATHS,
+  signerEndpointUrl,
+  signerUrlFromExchangeResponse,
+  type DirectSignerPath,
+} from "./direct-signer.js";
+export {
+  buildGatewayToken,
+  decodeGatewayToken,
+  mintGatewayToken,
+} from "./gateway-token.js";
+export {
   forwardToSigner,
   getCachedDmzBearerToken,
   normalizeSignerBaseUrl,
@@ -215,4 +227,10 @@ export type {
   SignerJwtIdentity,
   SignerTokenManagerOptions,
 } from "./types.js";
+export type {
+  GatewayTokenAuth,
+  GatewayTokenBundle,
+  GatewayTokenInput,
+  MintGatewayTokenOptions,
+} from "./gateway-token.js";
 export type { SignerUsageSnapshot } from "./proxy.js";

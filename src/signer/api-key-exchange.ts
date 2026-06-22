@@ -7,6 +7,7 @@ import {
   mintSignerTokenFromDeviceToken,
   normalizeDeviceExchangeResponse,
 } from "./device-exchange.js";
+import { assertDirectSignerBaseUrl } from "./direct-signer.js";
 import type {
   ApiKeyExchangeHandlerConfig,
   ApiKeyExchangeMintResult,
@@ -171,6 +172,9 @@ export async function exchangeApiKeyForSigner(
   const signerUrlRaw = parsed.signerUrl ?? parsed.signer_url;
   const signerUrl =
     typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
+  if (signerUrl) {
+    assertDirectSignerBaseUrl(signerUrl);
+  }
 
   return normalizeDeviceExchangeResponse(
     {

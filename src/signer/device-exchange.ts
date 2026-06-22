@@ -6,6 +6,7 @@ import { readJsonObjectFromResponse } from "./fetch-json.js";
 import { readExpiresIn, readStringField } from "./json-fields.js";
 import { signerHandlerErrorResponse } from "./handler-errors.js";
 import { parseMintUserSignerTokenResponse } from "./mint-token.js";
+import { assertDirectSignerBaseUrl } from "./direct-signer.js";
 import type {
   DeviceExchangeHandlerConfig,
   DeviceExchangeHandlerConfigRemote,
@@ -207,6 +208,9 @@ export async function exchangeDeviceTokenForSigner(
   const signerUrlRaw = parsed.signerUrl ?? parsed.signer_url;
   const signerUrl =
     typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
+  if (signerUrl) {
+    assertDirectSignerBaseUrl(signerUrl);
+  }
   return normalizeDeviceExchangeResponse(
     {
       access_token: accessToken,

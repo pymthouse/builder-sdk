@@ -85,6 +85,8 @@ export interface TokenExchangeResponse {
   expires_in: number;
   scope: string;
   issued_token_type: string;
+  /** Remote signer DMZ base URL from facade exchange; call signer RPCs here directly. */
+  signerUrl?: string;
 }
 
 export interface UsageQueryInput {
