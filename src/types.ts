@@ -84,15 +84,7 @@ export interface TokenExchangeResponse {
   token_type: "Bearer";
   expires_in: number;
   scope: string;
-  /**
-   * RFC 8693 issued token type.
-   *
-   * Optional because the deployed PymtHouse gateway/opaque exchange path may
-   * omit it; consumers (and {@link parseSignerSessionExchange}) MUST tolerate a
-   * missing value by defaulting it to the access-token type rather than
-   * rejecting the response.
-   */
-  issued_token_type?: string;
+  issued_token_type: string;
   /** Remote signer DMZ base URL from facade exchange; call signer RPCs here directly. */
   signerUrl?: string;
 }

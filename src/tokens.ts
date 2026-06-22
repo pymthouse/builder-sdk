@@ -82,11 +82,7 @@ export function decodeJwtExp(rawToken: string): Date | null {
 
 /**
  * Normalize an RFC 8693 token exchange response into a signer session token.
- *
- * Validates only what the documented gateway/opaque contract guarantees: a
- * non-empty, opaque (non-JWT) access token. A missing or empty
- * `issued_token_type` is tolerated — the documented gateway exchange may omit
- * it — so this function never hard-requires that field.
+ * Validates that the access token is opaque (not a JWT).
  */
 export function parseSignerSessionExchange(res: TokenExchangeResponse): SignerSessionToken {
   const accessToken = typeof res.access_token === "string" ? res.access_token.trim() : "";

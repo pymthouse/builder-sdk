@@ -2,10 +2,8 @@ import { type Client, OperationProcessingError, ResponseBodyError } from "oauth4
 import { PmtHouseError } from "./errors.js";
 import type { ClientCredentialsTokenResponse, TokenExchangeResponse } from "./types.js";
 
-const DEFAULT_ISSUED_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
-
 const ACCEPTED_ISSUED_TOKEN_TYPES = new Set([
-  DEFAULT_ISSUED_TOKEN_TYPE,
+  "urn:ietf:params:oauth:token-type:access_token",
   "urn:pmth:token-type:remote-signer-session",
 ]);
 
@@ -55,21 +53,12 @@ export function mapOAuthError(error: unknown): PmtHouseError {
 export function tokenEndpointResponseToExchange(
   tr: import("oauth4webapi").TokenEndpointResponse,
 ): TokenExchangeResponse {
-  // The documented gateway/opaque signer-session exchange may omit
-  // `issued_token_type` entirely. Tolerate a missing/empty value by defaulting
-  // it to the access-token type (per the agreed contract) instead of rejecting
-  // an otherwise-valid response. Only a value that is *present but unexpected*
-  // is treated as an error.
-  const rawIssued = tr.issued_token_type;
-  const issued =
-    typeof rawIssued === "string" && rawIssued.trim() !== ""
-      ? rawIssued
-      : DEFAULT_ISSUED_TOKEN_TYPE;
-  if (!ACCEPTED_ISSUED_TOKEN_TYPES.has(issued)) {
+  const issued = tr.issued_token_type;
+  if (typeof issued !== "string" || !ACCEPTED_ISSUED_TOKEN_TYPES.has(issued)) {
     throw new PmtHouseError("Token exchange returned an unexpected issued_token_type", {
       status: 502,
       code: "invalid_token_response",
-      details: { issued_token_type: rawIssued },
+      details: { issued_token_type: issued },
     });
   }
 

@@ -59,18 +59,4 @@ describe("tokens", () => {
     expect(out.accessToken).toBe("pmth_testopaque");
     expect(out.expiresIn).toBe(7776000);
   });
-
-  it("parseSignerSessionExchange tolerates a missing issued_token_type", () => {
-    const out = parseSignerSessionExchange({
-      access_token: "pmth_no_issued_type",
-      token_type: "Bearer",
-      expires_in: 7776000,
-      scope: "sign:job",
-      // issued_token_type intentionally omitted: the documented gateway/opaque
-      // exchange may not return it, and the parser must not hard-require it.
-    });
-    expect(out.accessToken).toBe("pmth_no_issued_type");
-    expect(out.expiresIn).toBe(7776000);
-    expect(out.scope).toBe("sign:job");
-  });
 });
