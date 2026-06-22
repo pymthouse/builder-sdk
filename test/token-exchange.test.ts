@@ -37,4 +37,17 @@ describe("tokenEndpointResponseToExchange", () => {
     };
     expect(() => tokenEndpointResponseToExchange(tr)).toThrow();
   });
+
+  it("defaults a missing issued_token_type to the access-token type", () => {
+    const tr = {
+      access_token: "pmth_opaque",
+      token_type: "bearer" as const,
+      expires_in: 7776000,
+      scope: "sign:job",
+      // issued_token_type omitted by the gateway/opaque exchange path.
+    };
+    const out = tokenEndpointResponseToExchange(tr);
+    expect(out.issued_token_type).toBe("urn:ietf:params:oauth:token-type:access_token");
+    expect(out.access_token).toBe("pmth_opaque");
+  });
 });
