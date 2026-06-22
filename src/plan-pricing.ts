@@ -60,13 +60,13 @@ export function retailRateUsdToMarkupPercent(raw: string | null | undefined): st
   }
   const n = Number(rate);
   if (!Number.isFinite(n) || n <= NETWORK_USD_PER_MICRO) {
-    return n === NETWORK_USD_PER_MICRO ? "0" : "";
+    return n < NETWORK_USD_PER_MICRO ? "" : "0";
   }
   const pct = (n / NETWORK_USD_PER_MICRO - 1) * 100;
   if (!Number.isFinite(pct) || pct <= 0) {
     return "";
   }
-  return pct % 1 === 0 ? String(Math.round(pct)) : pct.toFixed(1);
+  return Number.isInteger(pct) ? String(Math.round(pct)) : pct.toFixed(1);
 }
 
 export function retailRateUsdPerMillion(raw: string | null | undefined): string {
