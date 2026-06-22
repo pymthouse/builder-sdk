@@ -112,7 +112,14 @@ const session = await client.exchangeApiKeyForSignerSession({
 });
 // session.access_token — short-lived signer JWT
 // session.signerUrl — remote signer DMZ base (call signer RPCs here directly)
+// session.discoveryUrl — orchestrator discovery URL, when the platform sets one
 ```
+
+**Discovery URL (optional):** exchange responses include `discoveryUrl` when the
+platform facade is configured with one — either explicitly via the handler config
+(`discoveryUrl` on `createApiKeyExchangeHandler` / `createDeviceExchangeHandler`) or
+by setting `PYMTHOUSE_DISCOVERY_URL` in the facade's environment. There is no
+default; when unset, `discoveryUrl` is omitted.
 
 See `examples/stream-with-api-key.mjs` for a minimal Node script.
 

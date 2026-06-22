@@ -143,6 +143,8 @@ export interface DeviceExchangeResponse {
   lifetimeGrantedUsdMicros: string;
   /** Public signer DMZ base URL clients should call directly (no trailing slash). */
   signerUrl?: string;
+  /** Optional orchestrator discovery URL surfaced by the platform when configured. */
+  discoveryUrl?: string;
   token?: {
     accessToken: string;
     access_token: string;
@@ -195,6 +197,12 @@ export interface DeviceExchangeHandlerConfig {
   /** Resolved signer DMZ base URL included in the exchange response. */
   getSignerUrl?: () => string | Promise<string>;
   signerUrl?: string;
+  /**
+   * Optional orchestrator discovery URL included in the exchange response.
+   * Falls back to the `PYMTHOUSE_DISCOVERY_URL` env var when unset.
+   */
+  getDiscoveryUrl?: () => string | Promise<string>;
+  discoveryUrl?: string;
 }
 
 export interface DeviceExchangeHandlerConfigWithM2M extends DeviceExchangeHandlerConfig {
@@ -210,6 +218,8 @@ export interface DeviceExchangeHandlerConfigRemote extends Omit<
   mint?: never;
   getSignerUrl?: () => string | Promise<string>;
   signerUrl?: string;
+  getDiscoveryUrl?: () => string | Promise<string>;
+  discoveryUrl?: string;
 }
 
 export interface ApiKeyExchangeRequestBody {
@@ -226,6 +236,11 @@ export interface ApiKeyExchangeHandlerConfig {
   m2mClientId: string;
   m2mClientSecret: string;
   signerUrl?: string;
+  /**
+   * Optional orchestrator discovery URL included in the exchange response.
+   * Falls back to the `PYMTHOUSE_DISCOVERY_URL` env var when unset.
+   */
+  discoveryUrl?: string;
   audience?: string;
   fetch?: FetchLike;
   allowInsecureHttp?: boolean;

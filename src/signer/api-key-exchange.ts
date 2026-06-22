@@ -6,8 +6,10 @@ import {
   extractSignerAccessTokenFromExchangeBody,
   mintSignerTokenFromDeviceToken,
   normalizeDeviceExchangeResponse,
+  readDiscoveryUrlFromResponse,
 } from "./device-exchange.js";
 import { assertDirectSignerBaseUrl } from "./direct-signer.js";
+import { getPymthouseDiscoveryUrlFromEnv } from "../config.js";
 import type {
   ApiKeyExchangeHandlerConfig,
   ApiKeyExchangeMintResult,
@@ -175,6 +177,7 @@ export async function exchangeApiKeyForSigner(
   if (signerUrl) {
     assertDirectSignerBaseUrl(signerUrl);
   }
+  const discoveryUrl = readDiscoveryUrlFromResponse(parsed);
 
   return normalizeDeviceExchangeResponse(
     {
@@ -194,7 +197,7 @@ export async function exchangeApiKeyForSigner(
           ? parsed.lifetimeGrantedUsdMicros
           : "0",
     },
-    { signerUrl },
+    { signerUrl, discoveryUrl },
   );
 }
 
@@ -237,8 +240,15 @@ export function createApiKeyExchangeHandler(
         typeof config.signerUrl === "string" && config.signerUrl.trim()
           ? config.signerUrl.trim()
           : undefined;
+      const discoveryUrlValue =
+        typeof config.discoveryUrl === "string" && config.discoveryUrl.trim()
+          ? config.discoveryUrl.trim()
+          : getPymthouseDiscoveryUrlFromEnv() ?? undefined;
 
-      const body = normalizeDeviceExchangeResponse(minted, { signerUrl: signerUrlValue });
+      const body = normalizeDeviceExchangeResponse(minted, {
+        signerUrl: signerUrlValue,
+        discoveryUrl: discoveryUrlValue,
+      });
       return new Response(JSON.stringify(body), {
         status: 200,
         headers: {

@@ -1,4 +1,5 @@
 import { loadAuthorizationServer } from "../discovery.js";
+import { getPymthouseDiscoveryUrlFromEnv } from "../config.js";
 import { encodeClientSecretBasic } from "../encoding.js";
 import { PmtHouseError } from "../errors.js";
 import { stripTrailingSlashes } from "../string-utils.js";
@@ -49,7 +50,7 @@ export function extractSignerAccessTokenFromExchangeBody(
 
 export function normalizeDeviceExchangeResponse(
   minted: DeviceExchangeMintResult,
-  options?: { signerUrl?: string },
+  options?: { signerUrl?: string; discoveryUrl?: string },
 ): DeviceExchangeResponse {
   const scope = minted.scope.trim() || "sign:job";
   const body: DeviceExchangeResponse = {
@@ -72,6 +73,10 @@ export function normalizeDeviceExchangeResponse(
   const signerUrl = options?.signerUrl?.trim();
   if (signerUrl) {
     body.signerUrl = signerUrl;
+  }
+  const discoveryUrl = options?.discoveryUrl?.trim();
+  if (discoveryUrl) {
+    body.discoveryUrl = discoveryUrl;
   }
   return body;
 }
@@ -211,6 +216,7 @@ export async function exchangeDeviceTokenForSigner(
   if (signerUrl) {
     assertDirectSignerBaseUrl(signerUrl);
   }
+  const discoveryUrl = readDiscoveryUrlFromResponse(parsed);
   return normalizeDeviceExchangeResponse(
     {
       access_token: accessToken,
@@ -226,8 +232,16 @@ export async function exchangeDeviceTokenForSigner(
           ? parsed.lifetimeGrantedUsdMicros
           : "0",
     },
-    { signerUrl },
+    { signerUrl, discoveryUrl },
   );
+}
+
+/** Read `discoveryUrl`/`discovery_url` from an exchange response body. */
+export function readDiscoveryUrlFromResponse(
+  parsed: Record<string, unknown>,
+): string | undefined {
+  const raw = parsed.discoveryUrl ?? parsed.discovery_url;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
 }
 
 type CreateDeviceExchangeHandlerInput =
@@ -265,6 +279,22 @@ function resolveSignerUrlFromConfig(
   return undefined;
 }
 
+function resolveDiscoveryUrlFromConfig(
+  config: CreateDeviceExchangeHandlerInput,
+): string | Promise<string | undefined> | undefined {
+  if (
+    "discoveryUrl" in config &&
+    typeof config.discoveryUrl === "string" &&
+    config.discoveryUrl.trim()
+  ) {
+    return config.discoveryUrl.trim();
+  }
+  if ("getDiscoveryUrl" in config && typeof config.getDiscoveryUrl === "function") {
+    return config.getDiscoveryUrl();
+  }
+  return getPymthouseDiscoveryUrlFromEnv() ?? undefined;
+}
+
 export function createDeviceExchangeHandler(
   config: CreateDeviceExchangeHandlerInput,
 ): (request: Request) => Promise<Response> {
@@ -285,8 +315,10 @@ export function createDeviceExchangeHandler(
         clientId: parsed.clientId,
       });
       const signerUrlValue = await resolveSignerUrlFromConfig(config);
+      const discoveryUrlValue = await resolveDiscoveryUrlFromConfig(config);
       const body = normalizeDeviceExchangeResponse(minted, {
         signerUrl: typeof signerUrlValue === "string" ? signerUrlValue : undefined,
+        discoveryUrl: typeof discoveryUrlValue === "string" ? discoveryUrlValue : undefined,
       });
       return new Response(JSON.stringify(body), {
         status: 200,

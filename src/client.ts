@@ -92,7 +92,7 @@ export class PmtHouseClient {
   private readonly m2mClientId: string;
   private readonly m2mClientSecret: string;
   private readonly fetchImpl: FetchLike;
-  private readonly logger?: PmtHouseClientOptions["logger"];
+  private readonly logger: PmtHouseClientOptions["logger"];
   private readonly allowInsecureHttp: boolean;
 
   constructor(options: PmtHouseClientOptions) {
@@ -255,6 +255,9 @@ export class PmtHouseClient {
    *
    * When M2M credentials are available on this client, omit `facadeUrl` to exchange
    * directly against the PymtHouse issuer.
+   *
+   * The response includes `discoveryUrl` when the platform facade is configured with
+   * one (via handler config or the `PYMTHOUSE_DISCOVERY_URL` env var).
    */
   async exchangeApiKeyForSignerSession(input: {
     apiKey: string;
@@ -277,6 +280,7 @@ export class PmtHouseClient {
         scope: exchanged.scope,
         issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
         signerUrl: exchanged.signerUrl,
+        discoveryUrl: exchanged.discoveryUrl,
       };
     }
 

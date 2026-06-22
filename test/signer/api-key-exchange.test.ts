@@ -51,6 +51,48 @@ describe("exchangeApiKeyForSigner architecture", () => {
     }
   });
 
+  it("passes through discoveryUrl from the exchange response", async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () =>
+      Response.json({
+        access_token: "signer.jwt",
+        expires_in: 300,
+        scope: "sign:job",
+        signerUrl: "https://signer.example",
+        discoveryUrl:
+          "https://discovery-service-production-8955.up.railway.app/v1/discovery/raw?serviceType=legacy",
+      }),
+    );
+
+    const result = await exchangeApiKeyForSigner({
+      facadeUrl: "https://dashboard.example.com",
+      apiKey: "pmth_test_key",
+      fetch: fetchImpl,
+    });
+
+    expect(result.discoveryUrl).toBe(
+      "https://discovery-service-production-8955.up.railway.app/v1/discovery/raw?serviceType=legacy",
+    );
+  });
+
+  it("omits discoveryUrl when the exchange response has none", async () => {
+    const fetchImpl = vi.fn<FetchLike>(async () =>
+      Response.json({
+        access_token: "signer.jwt",
+        expires_in: 300,
+        scope: "sign:job",
+        signerUrl: "https://signer.example",
+      }),
+    );
+
+    const result = await exchangeApiKeyForSigner({
+      facadeUrl: "https://dashboard.example.com",
+      apiKey: "pmth_test_key",
+      fetch: fetchImpl,
+    });
+
+    expect(result.discoveryUrl).toBeUndefined();
+  });
+
   it("rejects dashboard proxy signerUrl values in exchange responses", async () => {
     const fetchImpl = vi.fn<FetchLike>(async () =>
       Response.json({

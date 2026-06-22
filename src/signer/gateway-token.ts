@@ -44,9 +44,9 @@ export interface GatewayTokenInput {
 
 function encodeBase64Json(value: unknown): string {
   const json = JSON.stringify(value);
-  return typeof Buffer !== "undefined"
-    ? Buffer.from(json, "utf8").toString("base64")
-    : btoa(Array.from(new TextEncoder().encode(json), (c) => String.fromCharCode(c)).join(""));
+  return typeof Buffer === "undefined"
+    ? btoa(Array.from(new TextEncoder().encode(json), (c) => String.fromCodePoint(c)).join(""))
+    : Buffer.from(json, "utf8").toString("base64");
 }
 
 function decodeBase64Json(token: string): unknown {
@@ -54,9 +54,9 @@ function decodeBase64Json(token: string): unknown {
   let json: string;
   try {
     json =
-      typeof Buffer !== "undefined"
-        ? Buffer.from(trimmed, "base64").toString("utf8")
-        : new TextDecoder().decode(Uint8Array.from(atob(trimmed), (c) => c.charCodeAt(0)));
+      typeof Buffer === "undefined"
+        ? new TextDecoder().decode(Uint8Array.from(atob(trimmed), (c) => c.codePointAt(0) ?? 0))
+        : Buffer.from(trimmed, "base64").toString("utf8");
   } catch {
     throw new PmtHouseError("Invalid gateway token: expected base64-encoded JSON", {
       status: 400,
@@ -99,7 +99,7 @@ export function buildGatewayToken(input: GatewayTokenInput): string {
     });
   }
 
-  const signerHeaders: Record<string, string> = { ...(input.signerHeaders ?? {}) };
+  const signerHeaders: Record<string, string> = { ...input.signerHeaders };
   const bundle: GatewayTokenBundle = { signer };
 
   if (input.discovery?.trim()) {

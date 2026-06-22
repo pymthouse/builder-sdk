@@ -87,6 +87,8 @@ export interface TokenExchangeResponse {
   issued_token_type: string;
   /** Remote signer DMZ base URL from facade exchange; call signer RPCs here directly. */
   signerUrl?: string;
+  /** Optional orchestrator discovery URL surfaced by the platform when configured. */
+  discoveryUrl?: string;
 }
 
 export interface UsageQueryInput {

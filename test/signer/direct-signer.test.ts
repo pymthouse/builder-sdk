@@ -31,7 +31,16 @@ describe("direct signer helpers", () => {
     expect(() =>
       assertDirectSignerBaseUrl("https://dashboard.example.com/api/signer/sign-orchestrator-info"),
     ).toThrow(PmtHouseError);
+    expect(() =>
+      assertDirectSignerBaseUrl("https://dashboard.example.com/api/signer/anything"),
+    ).toThrow(PmtHouseError);
+    expect(() => assertDirectSignerBaseUrl("https://pymthouse.example/api/signer")).toThrow(
+      PmtHouseError,
+    );
+    expect(() => assertDirectSignerBaseUrl("https://pymthouse.example/api/signer/")).toThrow(
+      PmtHouseError,
+    );
     expect(() => assertDirectSignerBaseUrl("https://signer.example")).not.toThrow();
-    expect(() => assertDirectSignerBaseUrl("https://pymthouse.example/api/signer")).not.toThrow();
+    expect(() => assertDirectSignerBaseUrl("https://signer.example/api/my-bff/signer")).not.toThrow();
   });
 });

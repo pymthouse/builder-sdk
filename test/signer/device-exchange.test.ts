@@ -150,6 +150,40 @@ describe("createDeviceExchangeHandler", () => {
       clientId: "app_123",
     });
   });
+
+  it("includes discoveryUrl from explicit config and from the env fallback", async () => {
+    const mint = vi.fn(async () => ({
+      access_token: "signer.jwt",
+      expires_in: 300,
+      scope: "sign:job",
+      balanceUsdMicros: "0",
+      lifetimeGrantedUsdMicros: "0",
+    }));
+    const request = () =>
+      new Request("http://localhost/api/signer/device/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceToken: "user.jwt" }),
+      });
+
+    const explicit = await createDeviceExchangeHandler({
+      mint,
+      discoveryUrl: "https://discovery.example/v1/discovery/raw",
+    })(request());
+    expect(((await explicit.json()) as Record<string, unknown>).discoveryUrl).toBe(
+      "https://discovery.example/v1/discovery/raw",
+    );
+
+    vi.stubEnv("PYMTHOUSE_DISCOVERY_URL", "https://discovery.env/v1/discovery/raw");
+    try {
+      const fromEnv = await createDeviceExchangeHandler({ mint })(request());
+      expect(((await fromEnv.json()) as Record<string, unknown>).discoveryUrl).toBe(
+        "https://discovery.env/v1/discovery/raw",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("mintSignerTokenFromDeviceToken", () => {

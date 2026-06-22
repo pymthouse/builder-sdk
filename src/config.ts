@@ -56,6 +56,14 @@ export function getPymthousePublicClientIdFromEnv(): string | null {
   return trimEnv("PYMTHOUSE_PUBLIC_CLIENT_ID");
 }
 
+/**
+ * Read `PYMTHOUSE_DISCOVERY_URL`, an optional orchestrator discovery endpoint that
+ * exchange handlers surface to clients as `discoveryUrl`. No default is assumed.
+ */
+export function getPymthouseDiscoveryUrlFromEnv(): string | null {
+  return trimEnv("PYMTHOUSE_DISCOVERY_URL");
+}
+
 /** True when all vars required by `createPmtHouseClientFromEnv` are present. */
 export function isPymthouseConfigured(): boolean {
   return readPymthouseEnv() !== null;
