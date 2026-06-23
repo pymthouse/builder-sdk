@@ -36,6 +36,7 @@ import type {
   GetAppManifestResult,
   GetDiscoveryOptions,
   MeScopeUsagePayload,
+  EndUserUsageSummary,
   MintSignerSessionForExternalUserInput,
   MintUserSignerSessionTokenInput,
   MintUserAccessTokenInput,
@@ -535,6 +536,60 @@ export class PmtHouseClient {
     return this.requestJson<UsageBalanceResponse>(url.toString(), {
       method: "GET",
       headers: this.builderHeaders(),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Self-scoped balance for the authenticated end user (Bearer user JWT or API key).
+   * Never accepts an external user id — identity comes from the token only.
+   */
+  async getMyUsageBalance(userAccessToken: string): Promise<UsageBalanceResponse & { clientId: string }> {
+    const token = userAccessToken.trim();
+    if (!token) {
+      throw new PmtHouseError("user access token is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+    return this.requestJson<UsageBalanceResponse & { clientId: string }>(
+      `${this.getAppsBaseUrl()}/usage/me/balance`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Self-scoped usage summary for the authenticated end user (Bearer user JWT or API key).
+   * Never accepts an external user id — identity comes from the token only.
+   */
+  async getMyUsage(
+    userAccessToken: string,
+    input: { startDate?: string; endDate?: string; includeRetail?: boolean } = {},
+  ): Promise<EndUserUsageSummary> {
+    const token = userAccessToken.trim();
+    if (!token) {
+      throw new PmtHouseError("user access token is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+    const url = new URL(`${this.getAppsBaseUrl()}/usage/me`);
+    if (input.startDate) url.searchParams.set("startDate", input.startDate);
+    if (input.endDate) url.searchParams.set("endDate", input.endDate);
+    if (input.includeRetail) url.searchParams.set("include", "retail");
+    return this.requestJson<EndUserUsageSummary>(url.toString(), {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
       cache: "no-store",
     });
   }

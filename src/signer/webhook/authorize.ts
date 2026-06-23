@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { PmtHouseError } from "../../errors.js";
+import { routeEndUserUsageRequest, type EndUserUsageConfig } from "../../usage/end-user-routes.js";
 import { optionalBearerToken } from "./bearer.js";
 import { authorizationFromWebhookPayload } from "./payload.js";
 import type { PaymentWebhookRequest, PaymentWebhookResponse } from "./types.js";
@@ -24,6 +25,12 @@ export type RemoteSignerWebhookConfig = {
   webhookSecret: string;
   endUserAuth: EndUserAuthVerifier;
   afterVerify?: (context: WebhookAuthorizeContext) => Promise<void>;
+};
+
+export type IdentityServiceConfig = RemoteSignerWebhookConfig & {
+  endUserUsage?: Omit<EndUserUsageConfig, "endUserAuth"> & {
+    endUserAuth?: EndUserAuthVerifier;
+  };
 };
 
 function authIdFromIdentity(identity: VerifiedEndUserAuth["identity"]): string {
@@ -165,4 +172,26 @@ export async function routeRemoteSignerWebhookRequest(
   }
 
   return null;
+}
+
+export async function routeIdentityServiceRequest(
+  request: Request,
+  config: IdentityServiceConfig,
+): Promise<Response | null> {
+  const webhookResponse = await routeRemoteSignerWebhookRequest(request, config);
+  if (webhookResponse) {
+    return webhookResponse;
+  }
+
+  const usage = config.endUserUsage;
+  if (!usage?.readBalance) {
+    return null;
+  }
+
+  return routeEndUserUsageRequest(request, {
+    endUserAuth: usage.endUserAuth ?? config.endUserAuth,
+    resolveExternalUserId: usage.resolveExternalUserId,
+    readBalance: usage.readBalance,
+    readUsage: usage.readUsage,
+  });
 }

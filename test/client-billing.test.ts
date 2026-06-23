@@ -74,6 +74,34 @@ describe("PmtHouseClient billing extensions", () => {
     expect(balance.hasAccess).toBe(true);
   });
 
+  it("getMyUsageBalance calls self-scoped endpoint with Bearer only", async () => {
+    const captured: { url?: string; headers?: Headers } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      if (input instanceof Request) {
+        captured.headers = input.headers;
+      } else if (init?.headers) {
+        captured.headers = new Headers(init.headers);
+      }
+      return Response.json({
+        clientId: "app_x",
+        externalUserId: "user-1",
+        balanceUsdMicros: "5000000",
+        consumedUsdMicros: "1000000",
+        lifetimeGrantedUsdMicros: "6000000",
+        hasAccess: true,
+        remainingUsdMicros: "5000000",
+      });
+    }) as unknown as FetchLike;
+
+    const balance = await makeClient(fetchMock).getMyUsageBalance("user-jwt-token");
+    expect(captured.url).toContain("/usage/me/balance");
+    expect(captured.url).not.toContain("externalUserId");
+    expect(captured.headers?.get("authorization")).toBe("Bearer user-jwt-token");
+    expect(balance.clientId).toBe("app_x");
+    expect(balance.balanceUsdMicros).toBe("5000000");
+  });
+
   it("grantUserAllowance POSTs to allowances endpoint", async () => {
     const captured: { url?: string; body?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {

@@ -376,6 +376,12 @@ export interface MeScopeUsagePayload {
   };
 }
 
+/** Self-scoped usage summary returned from `GET .../usage/me`. */
+export type EndUserUsageSummary = Pick<
+  MeScopeUsagePayload,
+  "clientId" | "period" | "currentUser"
+>;
+
 export interface MintSignerSessionForExternalUserInput {
   externalUserId: string;
   email?: string;

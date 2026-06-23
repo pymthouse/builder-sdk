@@ -12,6 +12,9 @@ export const SIGNER_SESSION_EXPIRES_IN_SEC = Math.floor(SIGNER_SESSION_TTL_MS / 
 /** Default end-user scope for Builder-minted user tokens and signer sessions. */
 export const SIGN_JOB_SCOPE = "sign:job";
 
+/** Least-privilege scope for self-scoped usage reads without signing rights. */
+export const USAGE_READ_SCOPE = "usage:read";
+
 /** @deprecated Use {@link SIGNER_SESSION_TTL_MS}. */
 export const PYMTHOUSE_SIGNER_SESSION_TTL_MS = SIGNER_SESSION_TTL_MS;
 

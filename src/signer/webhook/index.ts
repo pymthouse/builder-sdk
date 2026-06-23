@@ -14,7 +14,9 @@ export {
   authenticateWebhookCaller,
   createRemoteSignerAuthorizeHandler,
   handleRemoteSignerAuthorize,
+  routeIdentityServiceRequest,
   routeRemoteSignerWebhookRequest,
+  type IdentityServiceConfig,
   type RemoteSignerWebhookConfig,
   type WebhookAuthorizeContext,
 } from "./authorize.js";
@@ -25,7 +27,18 @@ export type {
   VerifiedEndUserAuth,
   WebhookAdminRoute,
 } from "./verifier.js";
-export { bearerTokenFromAuthorization, optionalBearerToken } from "./bearer.js";
+export {
+  assertClientIdMatch,
+  assertNoCrossUserQueryParams,
+  assertUsageReadScope,
+  matchUsageMeRoute,
+  verifyEndUserBearer,
+  type UsageMeRouteMatch,
+} from "../../usage/end-user-auth.js";
+export {
+  routeEndUserUsageRequest,
+  type EndUserUsageConfig,
+} from "../../usage/end-user-routes.js";
 export {
   createApiKeyEndUserVerifier,
   type ApiKeyEndUserVerifierConfig,

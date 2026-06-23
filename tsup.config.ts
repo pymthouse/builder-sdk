@@ -8,6 +8,7 @@ export default defineConfig({
     env: "src/env.ts",
     config: "src/config.ts",
     tokens: "src/tokens.ts",
+    usage: "src/usage/index.ts",
     device: "src/device.ts",
     "device-initiate": "src/device-initiate.ts",
     verify: "src/verify.ts",

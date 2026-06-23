@@ -55,6 +55,7 @@ export {
   SIGNER_SESSION_EXPIRES_IN_SEC,
   SIGNER_SESSION_TTL_MS,
   SIGN_JOB_SCOPE,
+  USAGE_READ_SCOPE,
 } from "./tokens.js";
 export type { SignerSessionToken } from "./tokens.js";
 export type { LoadAuthorizationServerOptions } from "./discovery.js";
@@ -76,6 +77,7 @@ export type {
   GrantSource,
   ListBillingProductsResult,
   MeScopeUsagePayload,
+  EndUserUsageSummary,
   MintSignerSessionForExternalUserInput,
   MintUserAccessTokenInput,
   MintUserAccessTokenResponse,
