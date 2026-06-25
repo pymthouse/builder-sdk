@@ -13,6 +13,19 @@ export const DEFAULT_WEBHOOK_IDENTITY_CLAIMS: WebhookIdentityClaimMapping = {
   usageSubjectType: "external_user_id",
 };
 
+/**
+ * Standard OIDC subject claim used to attribute usage when a deployment's
+ * configured `claimUsageSubject` (e.g. `external_user_id`) is absent from the
+ * token. Builder user-tokens minted at
+ * `POST /api/v1/apps/{clientId}/users/{externalUserId}/token` (scope `sign:job`)
+ * carry the app_user id in `sub` and do not emit `external_user_id`, so this
+ * lets the billed `/generate-live-payment` path attribute them without a re-mint.
+ */
+const FALLBACK_USAGE_SUBJECT_CLAIM = "sub";
+
+/** usage_subject_type applied when the subject is derived from the `sub` fallback and the token carries no explicit `user_type`/`usage_subject_type`. */
+const FALLBACK_USAGE_SUBJECT_TYPE = "app_user";
+
 function readClaim(payload: Record<string, unknown>, key: string): string {
   const value = payload[key];
   if (typeof value === "string" && value.trim()) {
@@ -44,8 +57,26 @@ export function identityFromWebhookClaims(
     clientId = readClaim(claims, "azp");
   }
 
-  const usageSubject = readClaim(claims, claimUsageSubject);
+  let usageSubject = readClaim(claims, claimUsageSubject);
   let usageSubjectType = defaultUsageSubjectType;
+
+  // Fall back to the standard OIDC `sub` claim when the configured usage-subject
+  // claim is absent. This mirrors the client_id -> azp fallback above and only
+  // triggers when the primary claim is empty, so tokens that already carry the
+  // configured claim (e.g. external_user_id) keep their existing attribution.
+  // Identity is still derived solely from claims validated by verifyJwt
+  // (signature / aud / scope), so this does not weaken verification.
+  if (!usageSubject && claimUsageSubject !== FALLBACK_USAGE_SUBJECT_CLAIM) {
+    const fallbackSubject = readClaim(claims, FALLBACK_USAGE_SUBJECT_CLAIM);
+    if (fallbackSubject) {
+      usageSubject = fallbackSubject;
+      // Attribute honestly to the subject's real type rather than the configured
+      // default (which describes the primary claim that was not present).
+      usageSubjectType = readClaim(claims, "user_type") || FALLBACK_USAGE_SUBJECT_TYPE;
+    }
+  }
+
+  // An explicit usage_subject_type claim always wins (unchanged behavior).
   const claimUsageSubjectType = readClaim(claims, "usage_subject_type");
   if (claimUsageSubjectType) {
     usageSubjectType = claimUsageSubjectType;
