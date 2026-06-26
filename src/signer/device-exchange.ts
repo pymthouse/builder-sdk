@@ -35,6 +35,40 @@ export function extractSignerAccessTokenFromExchangeBody(
   });
 }
 
+export function deviceExchangeResponseFromSignerSessionBody(
+  parsed: Record<string, unknown>,
+  options?: { defaultScope?: string },
+): DeviceExchangeResponse {
+  const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
+  const signerUrlRaw = parsed.signer_url;
+  const signerUrl =
+    typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
+  if (signerUrl) {
+    assertDirectSignerBaseUrl(signerUrl);
+  }
+
+  return normalizeDeviceExchangeResponse(
+    {
+      access_token: accessToken,
+      expires_in:
+        typeof parsed.expires_in === "number" && Number.isFinite(parsed.expires_in)
+          ? parsed.expires_in
+          : 3600,
+      scope:
+        typeof parsed.scope === "string" && parsed.scope.trim()
+          ? parsed.scope.trim()
+          : options?.defaultScope?.trim() || "sign:job",
+      balanceUsdMicros:
+        typeof parsed.balanceUsdMicros === "string" ? parsed.balanceUsdMicros : "0",
+      lifetimeGrantedUsdMicros:
+        typeof parsed.lifetimeGrantedUsdMicros === "string"
+          ? parsed.lifetimeGrantedUsdMicros
+          : "0",
+    },
+    { signer_url: signerUrl },
+  );
+}
+
 export function normalizeDeviceExchangeResponse(
   minted: DeviceExchangeMintResult,
   options?: { signer_url?: string },

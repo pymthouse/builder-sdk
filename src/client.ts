@@ -57,7 +57,6 @@ import type {
   UserAllowanceGrantInput,
   UserAllowancesResponse,
   UserSubscriptionResponse,
-  GrantSource,
 } from "./types.js";
 import {
   ingestSignedTicket,

@@ -3,11 +3,10 @@ import { PmtHouseError } from "../errors.js";
 import { readJsonObjectFromResponse } from "./fetch-json.js";
 import { signerHandlerErrorResponse } from "./handler-errors.js";
 import {
-  extractSignerAccessTokenFromExchangeBody,
+  deviceExchangeResponseFromSignerSessionBody,
   mintSignerTokenFromDeviceToken,
   normalizeDeviceExchangeResponse,
 } from "./device-exchange.js";
-import { assertDirectSignerBaseUrl } from "./direct-signer.js";
 import type {
   ApiKeyExchangeHandlerConfig,
   ApiKeyExchangeMintResult,
@@ -90,34 +89,9 @@ export async function mintSignerSessionFromApiKeyDirect(input: {
     defaultErrorCode: "api_key_signer_session_failed",
   });
 
-  const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
-  const signerUrlRaw = parsed.signer_url;
-  const signerUrl =
-    typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
-  if (signerUrl) {
-    assertDirectSignerBaseUrl(signerUrl);
-  }
-
-  return normalizeDeviceExchangeResponse(
-    {
-      access_token: accessToken,
-      expires_in:
-        typeof parsed.expires_in === "number" && Number.isFinite(parsed.expires_in)
-          ? parsed.expires_in
-          : 3600,
-      scope:
-        typeof parsed.scope === "string" && parsed.scope.trim()
-          ? parsed.scope.trim()
-          : input.scope?.trim() || "sign:job",
-      balanceUsdMicros:
-        typeof parsed.balanceUsdMicros === "string" ? parsed.balanceUsdMicros : "0",
-      lifetimeGrantedUsdMicros:
-        typeof parsed.lifetimeGrantedUsdMicros === "string"
-          ? parsed.lifetimeGrantedUsdMicros
-          : "0",
-    },
-    { signer_url: signerUrl },
-  );
+  return deviceExchangeResponseFromSignerSessionBody(parsed, {
+    defaultScope: input.scope,
+  });
 }
 
 export async function mintUserAccessTokenFromApiKey(input: {
@@ -254,34 +228,7 @@ export async function exchangeApiKeyForSigner(
     defaultErrorCode: "api_key_exchange_failed",
   });
 
-  const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
-  const signerUrlRaw = parsed.signer_url;
-  const signerUrl =
-    typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
-  if (signerUrl) {
-    assertDirectSignerBaseUrl(signerUrl);
-  }
-
-  return normalizeDeviceExchangeResponse(
-    {
-      access_token: accessToken,
-      expires_in:
-        typeof parsed.expires_in === "number" && Number.isFinite(parsed.expires_in)
-          ? parsed.expires_in
-          : 3600,
-      scope:
-        typeof parsed.scope === "string" && parsed.scope.trim()
-          ? parsed.scope.trim()
-          : "sign:job",
-      balanceUsdMicros:
-        typeof parsed.balanceUsdMicros === "string" ? parsed.balanceUsdMicros : "0",
-      lifetimeGrantedUsdMicros:
-        typeof parsed.lifetimeGrantedUsdMicros === "string"
-          ? parsed.lifetimeGrantedUsdMicros
-          : "0",
-    },
-    { signer_url: signerUrl },
-  );
+  return deviceExchangeResponseFromSignerSessionBody(parsed);
 }
 
 export function createApiKeyExchangeHandler(
