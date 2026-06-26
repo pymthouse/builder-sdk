@@ -74,20 +74,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RC_VERSION: ${{ steps.version.outputs.rc_version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          BODY="$(cat <<EOF
-          ## \`@pymthouse/builder-sdk\` RC published
+          BODY="$(cat <<'EOFBODY'
+          ## `@pymthouse/builder-sdk` RC published
 
           | | |
           | --- | --- |
-          | **Version** | \`${RC_VERSION}\` |
-          | **Git tag** | \`v${RC_VERSION}\` |
-          | **Exact install** | \`npm install @pymthouse/builder-sdk@${RC_VERSION}\` |
-          | **Rolling RC tag** | \`npm install @pymthouse/builder-sdk@rc\` |
+          | **Version** | `__RC_VERSION__` |
+          | **Git tag** | `v__RC_VERSION__` |
+          | **Exact install** | `npm install @pymthouse/builder-sdk@__RC_VERSION__` |
+          | **Rolling RC tag** | `npm install @pymthouse/builder-sdk@rc` |
 
-          Use this in pymthouse/dashboard PRs before \`0.5.0\` ships on \`latest\`.
-          EOF
+          Use this in pymthouse/dashboard PRs before `0.5.0` ships on `latest`.
+          EOFBODY
           )"
-          gh pr comment "${{ github.event.pull_request.number }}" \
-            -R "${{ github.repository}" \
+          BODY="${BODY//__RC_VERSION__/$RC_VERSION}"
+          gh pr comment "$PR_NUMBER" \
+            -R "$GITHUB_REPOSITORY" \
             --body "$BODY"
