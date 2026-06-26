@@ -107,27 +107,14 @@ describe("PmtHouseClient.exchangeApiKeyForSignerSession facade path", () => {
 });
 
 describe("mintSignerSessionFromApiKey", () => {
-  it("exchanges directly against issuer endpoints without facade proxy routes", async () => {
+  it("exchanges directly against issuer signer-session without facade proxy routes", async () => {
     const issuer = "https://pymthouse.example/api/v1/oidc";
     const fetchImpl = vi.fn<FetchLike>(async (input) => {
       const href = requestInputHref(input);
-      if (href.includes(".well-known/openid-configuration")) {
-        return Response.json({
-          issuer,
-          token_endpoint: `${issuer}/token`,
-          jwks_uri: `${issuer}/jwks`,
-        });
-      }
-      if (href.endsWith("/auth/api-key/token")) {
-        return Response.json({
-          access_token: "user.jwt",
-          expires_in: 900,
-          scope: "sign:job",
-        });
-      }
-      if (href.endsWith("/token")) {
+      if (href.endsWith("/auth/api-key/signer-session")) {
         return Response.json({
           access_token: "signer.jwt",
+          token_type: "Bearer",
           expires_in: 300,
           scope: "sign:job",
           balanceUsdMicros: "0",
@@ -151,6 +138,7 @@ describe("mintSignerSessionFromApiKey", () => {
     for (const call of fetchImpl.mock.calls) {
       const href = requestInputHref(call[0]);
       expect(href).not.toMatch(/\/api\/signer\//);
+      expect(href).toContain("/auth/api-key/signer-session");
     }
   });
 });

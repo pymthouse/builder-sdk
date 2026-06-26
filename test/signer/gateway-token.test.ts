@@ -144,20 +144,17 @@ describe("mintGatewayToken", () => {
           jwks_uri: `${issuer}/jwks`,
         });
       }
-      if (href.includes("/auth/api-key/token")) {
+      if (href.includes("/auth/api-key/signer-session")) {
         return Response.json({
-          access_token: "user-access-token",
+          access_token: "minted-signer-jwt",
+          token_type: "Bearer",
           expires_in: 900,
           scope: "sign:job",
+          balanceUsdMicros: "0",
+          lifetimeGrantedUsdMicros: "0",
         });
       }
-      return Response.json({
-        access_token: "minted-signer-jwt",
-        expires_in: 900,
-        scope: "sign:job",
-        balanceUsdMicros: "0",
-        lifetimeGrantedUsdMicros: "0",
-      });
+      throw new Error(`Unexpected request: ${href}`);
     });
 
     const token = await mintGatewayToken({
@@ -178,7 +175,7 @@ describe("mintGatewayToken", () => {
       fetchImpl.mock.calls.some(([req]) => {
         const href =
           typeof req === "string" ? req : req instanceof URL ? req.href : req.url;
-        return href.includes("/api/v1/apps/public-client/auth/api-key/token");
+        return href.includes("/api/v1/apps/public-client/auth/api-key/signer-session");
       }),
     ).toBe(true);
   });

@@ -72,6 +72,7 @@ export function normalizeDeviceExchangeResponse(
   const signerUrl = options?.signerUrl?.trim();
   if (signerUrl) {
     body.signerUrl = signerUrl;
+    body.signer_url = signerUrl;
   }
   return body;
 }

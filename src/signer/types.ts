@@ -143,6 +143,8 @@ export interface DeviceExchangeResponse {
   lifetimeGrantedUsdMicros: string;
   /** Public signer DMZ base URL clients should call directly (no trailing slash). */
   signerUrl?: string;
+  /** Canonical snake_case alias of signerUrl. */
+  signer_url?: string;
   token?: {
     accessToken: string;
     access_token: string;
