@@ -142,16 +142,8 @@ export interface DeviceExchangeResponse {
   balanceUsdMicros: string;
   lifetimeGrantedUsdMicros: string;
   /** Public signer DMZ base URL clients should call directly (no trailing slash). */
-  signerUrl?: string;
-  token?: {
-    accessToken: string;
-    access_token: string;
-    expiresIn: number;
-    expires_in: number;
-    scope: string;
-    balanceUsdMicros: string;
-    lifetimeGrantedUsdMicros: string;
-  };
+  signer_url?: string;
+  issued_token_type?: "urn:ietf:params:oauth:token-type:access_token";
 }
 
 export interface ExchangeDeviceTokenForSignerOptions {

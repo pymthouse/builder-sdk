@@ -29,7 +29,7 @@ describe("exchangeApiKeyForSigner architecture", () => {
         scope: "sign:job",
         balanceUsdMicros: "0",
         lifetimeGrantedUsdMicros: "0",
-        signerUrl: "https://signer.example",
+        signer_url: "https://signer.example",
       }),
     );
 
@@ -40,7 +40,7 @@ describe("exchangeApiKeyForSigner architecture", () => {
     });
 
     expect(result.access_token).toBe("signer.jwt");
-    expect(result.signerUrl).toBe("https://signer.example");
+    expect(result.signer_url).toBe("https://signer.example");
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
       "https://dashboard.example.com/api/pymthouse/keys/exchange",
@@ -51,13 +51,13 @@ describe("exchangeApiKeyForSigner architecture", () => {
     }
   });
 
-  it("rejects dashboard proxy signerUrl values in exchange responses", async () => {
+  it("rejects dashboard proxy signer_url values in exchange responses", async () => {
     const fetchImpl = vi.fn<FetchLike>(async () =>
       Response.json({
         access_token: "signer.jwt",
         expires_in: 300,
         scope: "sign:job",
-        signerUrl: "https://dashboard.example.com/api/signer/sign-orchestrator-info",
+        signer_url: "https://dashboard.example.com/api/signer/sign-orchestrator-info",
       }),
     );
 
@@ -72,7 +72,7 @@ describe("exchangeApiKeyForSigner architecture", () => {
 });
 
 describe("PmtHouseClient.exchangeApiKeyForSignerSession facade path", () => {
-  it("returns signerUrl from facade exchange for direct signer calls", async () => {
+  it("returns signer_url from facade exchange for direct signer calls", async () => {
     const fetchImpl = vi.fn<FetchLike>(async (input) => {
       const href = requestInputHref(input);
       if (href.endsWith("/api/pymthouse/keys/exchange")) {
@@ -81,7 +81,7 @@ describe("PmtHouseClient.exchangeApiKeyForSignerSession facade path", () => {
           token_type: "Bearer",
           expires_in: 300,
           scope: "sign:job",
-          signerUrl: "https://signer.example",
+          signer_url: "https://signer.example",
         });
       }
       throw new Error(`Unexpected request: ${href}`);
@@ -102,32 +102,19 @@ describe("PmtHouseClient.exchangeApiKeyForSignerSession facade path", () => {
     });
 
     expect(session.access_token).toBe("signer.jwt");
-    expect(session.signerUrl).toBe("https://signer.example");
+    expect(session.signer_url).toBe("https://signer.example");
   });
 });
 
 describe("mintSignerSessionFromApiKey", () => {
-  it("exchanges directly against issuer endpoints without facade proxy routes", async () => {
+  it("exchanges directly against issuer signer-session without facade proxy routes", async () => {
     const issuer = "https://pymthouse.example/api/v1/oidc";
     const fetchImpl = vi.fn<FetchLike>(async (input) => {
       const href = requestInputHref(input);
-      if (href.includes(".well-known/openid-configuration")) {
-        return Response.json({
-          issuer,
-          token_endpoint: `${issuer}/token`,
-          jwks_uri: `${issuer}/jwks`,
-        });
-      }
-      if (href.endsWith("/auth/api-key/token")) {
-        return Response.json({
-          access_token: "user.jwt",
-          expires_in: 900,
-          scope: "sign:job",
-        });
-      }
-      if (href.endsWith("/token")) {
+      if (href.endsWith("/auth/api-key/signer-session")) {
         return Response.json({
           access_token: "signer.jwt",
+          token_type: "Bearer",
           expires_in: 300,
           scope: "sign:job",
           balanceUsdMicros: "0",
@@ -151,6 +138,7 @@ describe("mintSignerSessionFromApiKey", () => {
     for (const call of fetchImpl.mock.calls) {
       const href = requestInputHref(call[0]);
       expect(href).not.toMatch(/\/api\/signer\//);
+      expect(href).toContain("/auth/api-key/signer-session");
     }
   });
 });

@@ -25,31 +25,53 @@ const EXCHANGE_RESPONSE_ERROR = "invalid_exchange_response";
 export function extractSignerAccessTokenFromExchangeBody(
   body: Record<string, unknown>,
 ): string {
-  const tokenObj = body.token;
-  if (tokenObj !== null && typeof tokenObj === "object" && !Array.isArray(tokenObj)) {
-    const nested = tokenObj as Record<string, unknown>;
-    for (const key of ["accessToken", "access_token"] as const) {
-      const value = nested[key];
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
-    }
+  const value = body.access_token;
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
   }
-  for (const key of ["accessToken", "access_token"] as const) {
-    const value = body[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  throw new PmtHouseError("Device exchange response missing signer access token", {
+  throw new PmtHouseError("Exchange response missing access_token", {
     status: 502,
     code: "invalid_exchange_response",
   });
 }
 
+export function deviceExchangeResponseFromSignerSessionBody(
+  parsed: Record<string, unknown>,
+  options?: { defaultScope?: string },
+): DeviceExchangeResponse {
+  const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
+  const signerUrlRaw = parsed.signer_url;
+  const signerUrl =
+    typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
+  if (signerUrl) {
+    assertDirectSignerBaseUrl(signerUrl);
+  }
+
+  return normalizeDeviceExchangeResponse(
+    {
+      access_token: accessToken,
+      expires_in:
+        typeof parsed.expires_in === "number" && Number.isFinite(parsed.expires_in)
+          ? parsed.expires_in
+          : 3600,
+      scope:
+        typeof parsed.scope === "string" && parsed.scope.trim()
+          ? parsed.scope.trim()
+          : options?.defaultScope?.trim() || "sign:job",
+      balanceUsdMicros:
+        typeof parsed.balanceUsdMicros === "string" ? parsed.balanceUsdMicros : "0",
+      lifetimeGrantedUsdMicros:
+        typeof parsed.lifetimeGrantedUsdMicros === "string"
+          ? parsed.lifetimeGrantedUsdMicros
+          : "0",
+    },
+    { signer_url: signerUrl },
+  );
+}
+
 export function normalizeDeviceExchangeResponse(
   minted: DeviceExchangeMintResult,
-  options?: { signerUrl?: string },
+  options?: { signer_url?: string },
 ): DeviceExchangeResponse {
   const scope = minted.scope.trim() || "sign:job";
   const body: DeviceExchangeResponse = {
@@ -59,19 +81,11 @@ export function normalizeDeviceExchangeResponse(
     scope,
     balanceUsdMicros: minted.balanceUsdMicros,
     lifetimeGrantedUsdMicros: minted.lifetimeGrantedUsdMicros,
-    token: {
-      accessToken: minted.access_token,
-      access_token: minted.access_token,
-      expiresIn: minted.expires_in,
-      expires_in: minted.expires_in,
-      scope,
-      balanceUsdMicros: minted.balanceUsdMicros,
-      lifetimeGrantedUsdMicros: minted.lifetimeGrantedUsdMicros,
-    },
+    issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
   };
-  const signerUrl = options?.signerUrl?.trim();
+  const signerUrl = options?.signer_url?.trim();
   if (signerUrl) {
-    body.signerUrl = signerUrl;
+    body.signer_url = signerUrl;
   }
   return body;
 }
@@ -205,7 +219,7 @@ export async function exchangeDeviceTokenForSigner(
   });
 
   const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
-  const signerUrlRaw = parsed.signerUrl ?? parsed.signer_url;
+  const signerUrlRaw = parsed.signer_url;
   const signerUrl =
     typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
   if (signerUrl) {
@@ -226,7 +240,7 @@ export async function exchangeDeviceTokenForSigner(
           ? parsed.lifetimeGrantedUsdMicros
           : "0",
     },
-    { signerUrl },
+    { signer_url: signerUrl },
   );
 }
 
@@ -286,7 +300,7 @@ export function createDeviceExchangeHandler(
       });
       const signerUrlValue = await resolveSignerUrlFromConfig(config);
       const body = normalizeDeviceExchangeResponse(minted, {
-        signerUrl: typeof signerUrlValue === "string" ? signerUrlValue : undefined,
+        signer_url: typeof signerUrlValue === "string" ? signerUrlValue : undefined,
       });
       return new Response(JSON.stringify(body), {
         status: 200,

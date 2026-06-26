@@ -85,8 +85,8 @@ export interface TokenExchangeResponse {
   expires_in: number;
   scope: string;
   issued_token_type: string;
-  /** Remote signer DMZ base URL from facade exchange; call signer RPCs here directly. */
-  signerUrl?: string;
+  /** Remote signer DMZ base URL from exchange; call signer RPCs here directly. */
+  signer_url?: string;
 }
 
 export interface UsageQueryInput {
@@ -232,12 +232,6 @@ export interface UsageBalanceResponse {
   remainingUsdMicros?: string;
 }
 
-/** @deprecated Use {@link UsageBalanceResponse}. */
-export type UserCreditsResponse = UsageBalanceResponse;
-
-/** @deprecated Use {@link UserAllowanceGrantInput}. */
-export type UserCreditGrantInput = UserAllowanceGrantInput;
-
 export interface SignerRoutingConfig {
   signerApiUrl: string;
   remoteDmzUrl: string | null;
@@ -254,10 +248,6 @@ export interface SignerRoutingResponse {
       description: string;
       signerApiUrl: string;
       webhookUrl: string;
-    };
-    deprecatedHostedFacade: {
-      description: string;
-      signerApiUrl: string | null;
     };
   };
 }
