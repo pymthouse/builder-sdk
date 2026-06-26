@@ -34,27 +34,6 @@ If the tag already exists (e.g. `v0.1.0`) but npm publish failed:
 
 If you use `workflow_dispatch`, the trusted publisher must allow that trigger (same workflow file `release.yml`).
 
-## PR release candidates (`publish-rc.yml`)
-
-On each update to a **same-repo** pull request targeting `main`, [publish-rc.yml](../.github/workflows/publish-rc.yml):
-
-1. Runs tests and build.
-2. Publishes `@pymthouse/builder-sdk@<base>-rc.pr<number>.<shortsha>` to npm with dist-tag **`rc`**.
-3. Pushes git tag `v<base>-rc.pr<number>.<shortsha>`.
-4. Comments on the PR with exact install commands.
-
-**npm trusted publishing:** add a second trusted publisher entry (or allow multiple workflows if your npm UI supports it) with workflow filename **`publish-rc.yml`**.
-
-**Downstream PRs (pymthouse, dashboard):** pin the RC while integrating:
-
-```bash
-npm install @pymthouse/builder-sdk@0.5.0-rc.pr123.abc1234
-# or the rolling tag (latest RC from the most recent publish-rc run):
-npm install @pymthouse/builder-sdk@rc
-```
-
-Fork PRs skip publish (OIDC/provenance cannot target fork heads).
-
 ## Cutting a new version
 
 Use the **Bump version** workflow or locally:
