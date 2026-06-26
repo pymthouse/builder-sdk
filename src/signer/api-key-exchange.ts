@@ -91,7 +91,7 @@ export async function mintSignerSessionFromApiKeyDirect(input: {
   });
 
   const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
-  const signerUrlRaw = parsed.signer_url ?? parsed.signerUrl;
+  const signerUrlRaw = parsed.signer_url;
   const signerUrl =
     typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
   if (signerUrl) {
@@ -116,7 +116,7 @@ export async function mintSignerSessionFromApiKeyDirect(input: {
           ? parsed.lifetimeGrantedUsdMicros
           : "0",
     },
-    { signerUrl },
+    { signer_url: signerUrl },
   );
 }
 
@@ -255,7 +255,7 @@ export async function exchangeApiKeyForSigner(
   });
 
   const accessToken = extractSignerAccessTokenFromExchangeBody(parsed);
-  const signerUrlRaw = parsed.signerUrl ?? parsed.signer_url;
+  const signerUrlRaw = parsed.signer_url;
   const signerUrl =
     typeof signerUrlRaw === "string" && signerUrlRaw.trim() ? signerUrlRaw.trim() : undefined;
   if (signerUrl) {
@@ -280,7 +280,7 @@ export async function exchangeApiKeyForSigner(
           ? parsed.lifetimeGrantedUsdMicros
           : "0",
     },
-    { signerUrl },
+    { signer_url: signerUrl },
   );
 }
 
@@ -317,7 +317,6 @@ export function createApiKeyExchangeHandler(
 
       const signerUrlValue =
         direct.signer_url ??
-        direct.signerUrl ??
         (typeof config.signerUrl === "string" && config.signerUrl.trim()
           ? config.signerUrl.trim()
           : undefined);
@@ -330,7 +329,7 @@ export function createApiKeyExchangeHandler(
           balanceUsdMicros: direct.balanceUsdMicros,
           lifetimeGrantedUsdMicros: direct.lifetimeGrantedUsdMicros,
         },
-        { signerUrl: signerUrlValue },
+        { signer_url: signerUrlValue },
       );
       return new Response(JSON.stringify(body), {
         status: 200,

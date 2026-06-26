@@ -23,8 +23,8 @@ describe("direct signer helpers", () => {
     );
   });
 
-  it("reads signerUrl from exchange responses", () => {
-    expect(signerUrlFromExchangeResponse({ signerUrl: " https://signer.example " })).toBe(
+  it("reads signer_url from exchange responses", () => {
+    expect(signerUrlFromExchangeResponse({ signer_url: " https://signer.example " })).toBe(
       "https://signer.example",
     );
     expect(signerUrlFromExchangeResponse({})).toBeUndefined();

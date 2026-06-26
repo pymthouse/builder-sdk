@@ -32,11 +32,11 @@ export function signerEndpointUrl(
   return `${base}/${suffix}`;
 }
 
-/** Read `signerUrl` from an exchange response envelope. */
+/** Read `signer_url` from an exchange response envelope. */
 export function signerUrlFromExchangeResponse(
-  response: Pick<DeviceExchangeResponse, "signerUrl">,
+  response: Pick<DeviceExchangeResponse, "signer_url">,
 ): string | undefined {
-  const url = response.signerUrl?.trim();
+  const url = response.signer_url?.trim();
   return url || undefined;
 }
 

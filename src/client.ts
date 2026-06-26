@@ -276,7 +276,7 @@ export class PmtHouseClient {
         expires_in: exchanged.expires_in,
         scope: exchanged.scope,
         issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
-        signerUrl: exchanged.signerUrl,
+        signer_url: exchanged.signer_url,
       };
     }
 
@@ -563,50 +563,6 @@ export class PmtHouseClient {
         cache: "no-store",
       },
     );
-  }
-
-  /**
-   * @deprecated Removed from PymtHouse — use {@link getUsageBalance} or {@link getUserAllowances}.
-   */
-  async getUserCredits(externalUserId: string): Promise<UsageBalanceResponse> {
-    return this.getUsageBalance(externalUserId);
-  }
-
-  /**
-   * @deprecated Removed from PymtHouse — use {@link grantUserAllowance} (`POST .../allowances`).
-   */
-  async grantUserCredits(
-    externalUserId: string,
-    input: { amountUsdMicros: string; source?: GrantSource; featureKey?: string },
-  ): Promise<UsageBalanceResponse & { grantedUsdMicros?: string; featureKey?: string }> {
-    const result = await this.grantUserAllowance(externalUserId, {
-      amountUsdMicros: input.amountUsdMicros,
-      source: input.source ?? "manual",
-      featureKey: input.featureKey,
-    });
-    const flat = result as UserAllowancesResponse & {
-      balanceUsdMicros?: string;
-      consumedUsdMicros?: string;
-      lifetimeGrantedUsdMicros?: string;
-      hasAccess?: boolean;
-      grantedUsdMicros?: string;
-      featureKey?: string;
-    };
-    const nested = result.allowances;
-    return {
-      externalUserId: result.externalUserId,
-      balanceUsdMicros:
-        flat.balanceUsdMicros ?? nested?.balanceUsdMicros ?? "0",
-      consumedUsdMicros:
-        flat.consumedUsdMicros ?? nested?.consumedUsdMicros ?? "0",
-      lifetimeGrantedUsdMicros:
-        flat.lifetimeGrantedUsdMicros ?? nested?.lifetimeGrantedUsdMicros ?? "0",
-      hasAccess: flat.hasAccess ?? nested?.hasAccess ?? false,
-      remainingUsdMicros:
-        flat.balanceUsdMicros ?? nested?.balanceUsdMicros,
-      grantedUsdMicros: flat.grantedUsdMicros,
-      featureKey: flat.featureKey,
-    };
   }
 
   async getUserSubscription(externalUserId: string): Promise<UserSubscriptionResponse> {

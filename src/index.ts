@@ -18,7 +18,6 @@ export {
   buildMeScopeUsagePayload,
   DEFAULT_MAX_END_USER_IDS,
   getEndUserIdsForExternalUser,
-  getUsageRecordUserIdsForExternalUser,
   getUtcCalendarMonthIsoBounds,
   listUsageByPipelineModel,
   mergeUsageByPipelineModel,
@@ -45,13 +44,11 @@ export {
 } from "./discovery.js";
 export { computeManifestRevision, parseAppManifestResponse } from "./manifest.js";
 export {
-  computePymthouseExpiry,
   computeSignerSessionExpiry,
   decodeJwtExp,
   isLikelyOidcJwt,
   isOpaqueSignerSessionToken,
   parseSignerSessionExchange,
-  PYMTHOUSE_SIGNER_SESSION_TTL_MS,
   SIGNER_SESSION_EXPIRES_IN_SEC,
   SIGNER_SESSION_TTL_MS,
   SIGN_JOB_SCOPE,
@@ -101,7 +98,5 @@ export type {
   UsageBalanceResponse,
   UserAllowanceGrantInput,
   UserAllowancesResponse,
-  UserCreditGrantInput,
-  UserCreditsResponse,
   UserSubscriptionResponse,
 } from "./types.js";

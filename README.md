@@ -72,7 +72,7 @@ For advanced flows that already have a user JWT, call
 
 Create a key in the Dashboard **API keys** page, then exchange it for a short-lived
 signer JWT without repeating device login. The facade mints credentials only;
-signing RPCs go **directly to the remote signer DMZ** returned as `signerUrl`.
+signing RPCs go **directly to the remote signer DMZ** returned as `signer_url`.
 
 ```ts
 import {
@@ -88,7 +88,7 @@ const session = await exchangeApiKeyForSigner({
   clientId: process.env.PYMTHOUSE_PUBLIC_CLIENT_ID!,
 });
 
-const signerBase = session.signerUrl!; // remote signer DMZ from exchange
+const signerBase = session.signer_url!; // remote signer DMZ from exchange
 const orchInfo = await fetch(
   signerEndpointUrl(signerBase, DIRECT_SIGNER_PATHS.signOrchestratorInfo),
   {
@@ -102,7 +102,7 @@ const orchInfo = await fetch(
 );
 ```
 
-Or via `PmtHouseClient` (returns `signerUrl` when using `facadeUrl`):
+Or via `PmtHouseClient` (returns `signer_url` when using `facadeUrl`):
 
 ```ts
 const session = await client.exchangeApiKeyForSignerSession({
@@ -111,7 +111,7 @@ const session = await client.exchangeApiKeyForSignerSession({
   scope: "sign:job",
 });
 // session.access_token — short-lived signer JWT
-// session.signerUrl — remote signer DMZ base (call signer RPCs here directly)
+// session.signer_url — remote signer DMZ base (call signer RPCs here directly)
 ```
 
 See `examples/stream-with-api-key.mjs` for a minimal Node script.
@@ -317,11 +317,11 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 
 **Metering:** after exchange, sign directly against the remote signer DMZ with
 `forwardToSigner`, `forwardDirectSignerRequest`, or plain `fetch` to
-`{signerUrl}/{path}`. Usage is emitted asynchronously by go-livepeer to Kafka
+`{signer_url}/{path}`. Usage is emitted asynchronously by go-livepeer to Kafka
 and ingested by the OpenMeter collector. Dashboard `/api/signer/*` HTTP proxy
 routes and synchronous HTTP signed-ticket ingest are removed.
 
-**Routing:** `getSignerRouting()` returns the remote DMZ URL, webhook URL, and migration hints (`directDmz` / `deprecatedHostedFacade`).
+**Routing:** `getSignerRouting()` returns the remote DMZ URL and webhook URL (`patterns.directDmz`).
 
 **Allowances (OpenMeter):** Trial and manual USD micros allowance use OpenMeter entitlements — not a Postgres wei ledger.
 
@@ -330,8 +330,6 @@ routes and synchronous HTTP signed-ticket ingest are removed.
 | Read balance | `getUsageBalance(externalUserId)` | `GET .../usage/balance?externalUserId=` |
 | Read allowance detail | `getUserAllowances(externalUserId)` | `GET .../users/{id}/allowances` |
 | Top-up grant | `grantUserAllowance(externalUserId, { amountUsdMicros, source })` | `POST .../users/{id}/allowances` |
-
-`grantUserCredits` / `getUserCredits` remain as **deprecated** aliases that call the allowances / balance endpoints. `POST .../users/{id}/credits` was removed from PymtHouse (the route may still re-export allowances temporarily).
 
 **Plan pricing helpers:** `markupPercentToRetailRateUsd`, `applyRetailRateToNetworkMicros` (exported from the main entry).
 

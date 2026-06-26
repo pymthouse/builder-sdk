@@ -12,9 +12,6 @@ export const SIGNER_SESSION_EXPIRES_IN_SEC = Math.floor(SIGNER_SESSION_TTL_MS / 
 /** Default end-user scope for Builder-minted user tokens and signer sessions. */
 export const SIGN_JOB_SCOPE = "sign:job";
 
-/** @deprecated Use {@link SIGNER_SESSION_TTL_MS}. */
-export const PYMTHOUSE_SIGNER_SESSION_TTL_MS = SIGNER_SESSION_TTL_MS;
-
 export interface SignerSessionToken {
   accessToken: string;
   tokenType: string;
@@ -30,9 +27,6 @@ export function computeSignerSessionExpiry(input: Date | string): Date {
   const createdAt = input instanceof Date ? input : new Date(input);
   return new Date(createdAt.getTime() + SIGNER_SESSION_TTL_MS);
 }
-
-/** @deprecated Use {@link computeSignerSessionExpiry}. */
-export const computePymthouseExpiry = computeSignerSessionExpiry;
 
 /**
  * Cheap shape check — true for inputs that look like a 3-segment JWT.

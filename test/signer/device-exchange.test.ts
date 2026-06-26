@@ -74,20 +74,20 @@ function tokenExchangeRequestParams(
 }
 
 describe("device exchange helpers", () => {
-  it("extracts nested and top-level access tokens", () => {
-    expect(
-      extractSignerAccessTokenFromExchangeBody({
-        token: { accessToken: "nested.jwt" },
-      }),
-    ).toBe("nested.jwt");
+  it("extracts top-level access_token only", () => {
     expect(
       extractSignerAccessTokenFromExchangeBody({
         access_token: "top.jwt",
       }),
     ).toBe("top.jwt");
+    expect(() =>
+      extractSignerAccessTokenFromExchangeBody({
+        token: { accessToken: "nested.jwt" },
+      }),
+    ).toThrow(/missing access_token/);
   });
 
-  it("normalizes exchange response for python-gateway compatibility", () => {
+  it("normalizes exchange response to canonical SignerSession shape", () => {
     const body = normalizeDeviceExchangeResponse(
       {
         access_token: "jwt",
@@ -96,11 +96,12 @@ describe("device exchange helpers", () => {
         balanceUsdMicros: "5000000",
         lifetimeGrantedUsdMicros: "5000000",
       },
-      { signerUrl: "http://127.0.0.1:8080" },
+      { signer_url: "http://127.0.0.1:8080" },
     );
-    expect(body.token?.accessToken).toBe("jwt");
     expect(body.access_token).toBe("jwt");
-    expect(body.signerUrl).toBe("http://127.0.0.1:8080");
+    expect(body.signer_url).toBe("http://127.0.0.1:8080");
+    expect(body).not.toHaveProperty("token");
+    expect(body).not.toHaveProperty("signerUrl");
   });
 
   it("parses device exchange request body", async () => {
@@ -144,7 +145,7 @@ describe("createDeviceExchangeHandler", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as Record<string, unknown>;
     expect(body.access_token).toBe("signer.jwt");
-    expect(body.signerUrl).toBe("http://127.0.0.1:8080");
+    expect(body.signer_url).toBe("http://127.0.0.1:8080");
     expect(mint).toHaveBeenCalledWith("user.jwt", {
       scope: undefined,
       clientId: "app_123",
@@ -187,7 +188,7 @@ describe("exchangeDeviceTokenForSigner", () => {
         scope: "sign:job",
         balanceUsdMicros: "1",
         lifetimeGrantedUsdMicros: "2",
-        signerUrl: "http://127.0.0.1:8080",
+        signer_url: "http://127.0.0.1:8080",
       }),
     );
 
@@ -198,7 +199,7 @@ describe("exchangeDeviceTokenForSigner", () => {
     });
 
     expect(result.access_token).toBe("signer.jwt");
-    expect(result.signerUrl).toBe("http://127.0.0.1:8080");
+    expect(result.signer_url).toBe("http://127.0.0.1:8080");
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
       "http://localhost:3001/api/signer/device/exchange",

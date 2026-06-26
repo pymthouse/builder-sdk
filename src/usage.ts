@@ -111,9 +111,6 @@ export function getEndUserIdsForExternalUser(
   return [...userIds];
 }
 
-/** @deprecated Use {@link getEndUserIdsForExternalUser}. */
-export const getUsageRecordUserIdsForExternalUser = getEndUserIdsForExternalUser;
-
 export interface UsageFiatSummary {
   externalUserId: string;
   requestCount: number;
