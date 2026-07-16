@@ -226,23 +226,31 @@ export class PmtHouseClient {
   }
 
   /**
-   * Exchange a long-lived dashboard API key (`pmth_*`) for a short-lived user JWT.
+   * Exchange a long-lived API key (bare `pmth_*` or composite `app_<24hex>_<secret>`)
+   * for a short-lived signer JWT via app-scoped RFC 8693 token exchange.
    */
   async exchangeApiKeyForUserAccessToken(input: {
     apiKey: string;
     scope?: string;
   }): Promise<MintUserAccessTokenResponse> {
-    const url = `${this.getAppsBaseUrl()}/auth/api-key/token`;
-    return this.requestJson<MintUserAccessTokenResponse>(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.apiKey.trim()}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(input.scope ? { scope: input.scope } : {}),
-      cache: "no-store",
+    const { mintUserAccessTokenFromApiKey } = await import("./signer/api-key-exchange.js");
+    const minted = await mintUserAccessTokenFromApiKey({
+      issuerUrl: this.issuerUrl,
+      publicClientId: this.publicClientId,
+      apiKey: input.apiKey,
+      scope: input.scope,
+      m2mClientId: this.m2mClientId,
+      m2mClientSecret: this.m2mClientSecret,
+      fetch: this.fetchImpl,
     });
+    return {
+      access_token: minted.access_token,
+      refresh_token: "",
+      token_type: "Bearer",
+      expires_in: minted.expires_in,
+      scope: minted.scope,
+      subject_type: "app_user",
+    };
   }
 
   /**
@@ -253,7 +261,7 @@ export class PmtHouseClient {
    * (e.g. `{signerUrl}/sign-orchestrator-info`), not via dashboard `/api/signer/*`.
    *
    * When M2M credentials are available on this client, omit `facadeUrl` to exchange
-   * directly against the PymtHouse issuer.
+   * directly against the PymtHouse issuer (`POST …/apps/{clientId}/oidc/token`).
    */
   async exchangeApiKeyForSignerSession(input: {
     apiKey: string;
@@ -279,11 +287,24 @@ export class PmtHouseClient {
       };
     }
 
-    const userToken = await this.exchangeApiKeyForUserAccessToken({
+    const { mintSignerSessionFromApiKeyDirect } = await import("./signer/api-key-exchange.js");
+    const exchanged = await mintSignerSessionFromApiKeyDirect({
+      issuerUrl: this.issuerUrl,
+      publicClientId: this.publicClientId,
       apiKey: input.apiKey,
       scope: input.scope,
+      m2mClientId: this.m2mClientId,
+      m2mClientSecret: this.m2mClientSecret,
+      fetch: this.fetchImpl,
     });
-    return this.exchangeForSignerSession({ userJwt: userToken.access_token });
+    return {
+      access_token: exchanged.access_token,
+      token_type: exchanged.token_type,
+      expires_in: exchanged.expires_in,
+      scope: exchanged.scope,
+      issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      signer_url: exchanged.signer_url,
+    };
   }
 
   async completeDeviceApproval(

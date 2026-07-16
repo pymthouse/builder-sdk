@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+- API-key → signer exchange uses app-scoped RFC 8693 `POST …/apps/{clientId}/oidc/token`
+  (replaces removed `/auth/api-key/signer-session` and `/auth/api-key/token`).
+- Add composite API key helpers: `isCompositeApiKey`, `splitCompositeApiKey`,
+  `formatCompositeApiKey` for presented `app_<24hex>_<secret>` credentials.
+- Remove `@pymthouse/builder-sdk/signer/webhook` — use
+  `@pymthouse/clearinghouse-identity-webhook` (or `@livepeer/clearinghouse-identity-webhook`)
+  instead.
+- Docs: presented keys are underscore composites; identity webhook accepts them as Bearer.
+
 ## 0.1.0
 
 - Add `@pymthouse/builder-sdk/config` for Edge/middleware-safe env reads (`isPymthouseConfigured`, `readPymthouseEnv`).

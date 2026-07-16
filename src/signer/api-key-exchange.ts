@@ -1,10 +1,10 @@
+import { encodeClientSecretBasic } from "../encoding.js";
 import { stripIssuerOriginFromOidcUrl, stripTrailingSlashes } from "../string-utils.js";
 import { PmtHouseError } from "../errors.js";
 import { readJsonObjectFromResponse } from "./fetch-json.js";
 import { signerHandlerErrorResponse } from "./handler-errors.js";
 import {
   deviceExchangeResponseFromSignerSessionBody,
-  mintSignerTokenFromDeviceToken,
   normalizeDeviceExchangeResponse,
 } from "./device-exchange.js";
 import type {
@@ -16,6 +16,8 @@ import type {
 } from "./types.js";
 
 const EXCHANGE_RESPONSE_ERROR = "invalid_exchange_response";
+const TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
+const ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
 
 export async function parseApiKeyExchangeRequestBody(
   request: Request,
@@ -61,32 +63,56 @@ export async function parseApiKeyExchangeRequestBody(
   return { apiKey, scope, clientId };
 }
 
+/**
+ * Exchange a long-lived API key (bare `pmth_*` or composite `app_<24hex>_<secret>`)
+ * for a short-lived signer JWT via app-scoped RFC 8693 token exchange.
+ *
+ * Canonical issuer route: `POST /api/v1/apps/{clientId}/oidc/token`.
+ */
 export async function mintSignerSessionFromApiKeyDirect(input: {
   issuerUrl: string;
   publicClientId: string;
   apiKey: string;
   scope?: string;
+  m2mClientId?: string;
+  m2mClientSecret?: string;
   fetch?: typeof fetch;
 }): Promise<DeviceExchangeResponse> {
   const fetchImpl = input.fetch ?? fetch;
   const issuerOrigin = stripIssuerOriginFromOidcUrl(input.issuerUrl);
-  const url = `${issuerOrigin}/api/v1/apps/${encodeURIComponent(input.publicClientId)}/auth/api-key/signer-session`;
+  const url = `${issuerOrigin}/api/v1/apps/${encodeURIComponent(input.publicClientId)}/oidc/token`;
+
+  const form = new URLSearchParams({
+    grant_type: TOKEN_EXCHANGE_GRANT,
+    subject_token: input.apiKey,
+    subject_token_type: ACCESS_TOKEN_TYPE,
+  });
+  if (input.scope?.trim()) {
+    form.set("scope", input.scope.trim());
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-www-form-urlencoded",
+    Accept: "application/json",
+  };
+  const m2mId = input.m2mClientId?.trim();
+  const m2mSecret = input.m2mClientSecret?.trim();
+  if (m2mId && m2mSecret) {
+    headers.Authorization = encodeClientSecretBasic(m2mId, m2mSecret);
+  }
+
   const response = await fetchImpl(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(input.scope ? { scope: input.scope } : {}),
+    headers,
+    body: form.toString(),
     cache: "no-store",
   });
 
   const parsed = await readJsonObjectFromResponse(response, {
-    invalidJsonMessage: "API key signer-session returned invalid JSON",
+    invalidJsonMessage: "Token exchange returned invalid JSON",
     invalidJsonCode: EXCHANGE_RESPONSE_ERROR,
-    failureLabel: "API key signer-session failed",
-    defaultErrorCode: "api_key_signer_session_failed",
+    failureLabel: "API key token exchange failed",
+    defaultErrorCode: "api_key_exchange_failed",
   });
 
   return deviceExchangeResponseFromSignerSessionBody(parsed, {
@@ -94,55 +120,24 @@ export async function mintSignerSessionFromApiKeyDirect(input: {
   });
 }
 
+/**
+ * @deprecated Prefer {@link mintSignerSessionFromApiKeyDirect}. Kept for call-site
+ * compatibility; performs the same app-scoped OIDC token exchange.
+ */
 export async function mintUserAccessTokenFromApiKey(input: {
   issuerUrl: string;
   publicClientId: string;
   apiKey: string;
   scope?: string;
+  m2mClientId?: string;
+  m2mClientSecret?: string;
   fetch?: typeof fetch;
 }): Promise<{ access_token: string; expires_in: number; scope: string }> {
-  const fetchImpl = input.fetch ?? fetch;
-  const issuerOrigin = stripIssuerOriginFromOidcUrl(input.issuerUrl);
-  const url = `${issuerOrigin}/api/v1/apps/${encodeURIComponent(input.publicClientId)}/auth/api-key/token`;
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(input.scope ? { scope: input.scope } : {}),
-    cache: "no-store",
-  });
-
-  const parsed = await readJsonObjectFromResponse(response, {
-    invalidJsonMessage: "API key token exchange returned invalid JSON",
-    invalidJsonCode: "invalid_token_response",
-    failureLabel: "API key token exchange failed",
-    defaultErrorCode: "api_key_token_exchange_failed",
-  });
-
-  const accessToken = parsed.access_token;
-  if (typeof accessToken !== "string" || !accessToken.trim()) {
-    throw new PmtHouseError("API key token exchange missing access_token", {
-      status: 502,
-      code: EXCHANGE_RESPONSE_ERROR,
-    });
-  }
-
-  const expiresIn =
-    typeof parsed.expires_in === "number" && Number.isFinite(parsed.expires_in)
-      ? parsed.expires_in
-      : 900;
-  const scope =
-    typeof parsed.scope === "string" && parsed.scope.trim()
-      ? parsed.scope.trim()
-      : input.scope?.trim() || "sign:job";
-
+  const session = await mintSignerSessionFromApiKeyDirect(input);
   return {
-    access_token: accessToken.trim(),
-    expires_in: expiresIn,
-    scope,
+    access_token: session.access_token,
+    expires_in: session.expires_in,
+    scope: session.scope,
   };
 }
 
@@ -157,45 +152,22 @@ export async function mintSignerSessionFromApiKey(input: {
   fetch?: typeof fetch;
   allowInsecureHttp?: boolean;
 }): Promise<ApiKeyExchangeMintResult> {
-  try {
-    const direct = await mintSignerSessionFromApiKeyDirect({
-      issuerUrl: input.issuerUrl,
-      publicClientId: input.publicClientId,
-      apiKey: input.apiKey,
-      scope: input.scope,
-      fetch: input.fetch,
-    });
-    return {
-      access_token: direct.access_token,
-      expires_in: direct.expires_in,
-      scope: direct.scope,
-      balanceUsdMicros: direct.balanceUsdMicros,
-      lifetimeGrantedUsdMicros: direct.lifetimeGrantedUsdMicros,
-    };
-  } catch (err) {
-    if (!(err instanceof PmtHouseError) || err.status !== 404) {
-      throw err;
-    }
-  }
-
-  const userToken = await mintUserAccessTokenFromApiKey({
+  const direct = await mintSignerSessionFromApiKeyDirect({
     issuerUrl: input.issuerUrl,
     publicClientId: input.publicClientId,
     apiKey: input.apiKey,
     scope: input.scope,
-    fetch: input.fetch,
-  });
-
-  return mintSignerTokenFromDeviceToken({
-    issuerUrl: input.issuerUrl,
     m2mClientId: input.m2mClientId,
     m2mClientSecret: input.m2mClientSecret,
-    deviceToken: userToken.access_token,
-    scope: userToken.scope,
-    audience: input.audience,
     fetch: input.fetch,
-    allowInsecureHttp: input.allowInsecureHttp,
   });
+  return {
+    access_token: direct.access_token,
+    expires_in: direct.expires_in,
+    scope: direct.scope,
+    balanceUsdMicros: direct.balanceUsdMicros,
+    lifetimeGrantedUsdMicros: direct.lifetimeGrantedUsdMicros,
+  };
 }
 
 export async function exchangeApiKeyForSigner(
@@ -259,6 +231,8 @@ export function createApiKeyExchangeHandler(
         publicClientId,
         apiKey: parsed.apiKey,
         scope: parsed.scope,
+        m2mClientId: config.m2mClientId,
+        m2mClientSecret: config.m2mClientSecret,
         fetch: config.fetch,
       });
 

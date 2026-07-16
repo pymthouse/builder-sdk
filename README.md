@@ -6,6 +6,12 @@ TypeScript client for the **PymtHouse Builder API**, **Usage API**, and **OIDC i
 
 OAuth/OIDC protocol calls use **[oauth4webapi](https://github.com/panva/oauth4webapi)** (OpenID-certified relying-party implementation). PymtHouse-specific REST paths and helpers live in `PmtHouseClient`.
 
+> **Metering & billing:** Prefer Konnect Metering & Billing with per-tenant SPATs
+> from clearinghouse [`konnect-credentials`](https://github.com/livepeer/clearinghouse/tree/main/konnect-credentials)
+> over expanding Builder usage/billing helpers. Keep this SDK for OIDC, API keys,
+> and signer session exchange; treat Builder `/usage` and `/billing` helpers as
+> transitional until integrators call Konnect directly.
+
 ## Install
 
 ```bash
@@ -68,11 +74,15 @@ const signerSession = await client.mintUserSignerSessionToken({
 For advanced flows that already have a user JWT, call
 `exchangeForSignerSession({ userJwt })` directly.
 
-### Dashboard API keys (long-lived `pmth_*`)
+### Dashboard API keys (presented `app_<24hex>_<secret>`)
 
-Create a key in the Dashboard **API keys** page, then exchange it for a short-lived
-signer JWT without repeating device login. The facade mints credentials only;
-signing RPCs go **directly to the remote signer DMZ** returned as `signer_url`.
+Create a key in the Dashboard **API keys** page. Newly issued keys are composite
+`app_<24hex>_<secret>` (usually `app_…_pmth_…`); bare `pmth_*` remains valid as
+`subject_token` when `{clientId}` is already in the exchange path. Exchange for a
+short-lived signer JWT without repeating device login. The facade mints credentials
+only; signing RPCs go **directly to the remote signer DMZ** returned as `signer_url`.
+Alternatively, present the full composite as `Authorization: Bearer` to the remote
+signer — the identity webhook splits it and performs the same RFC 8693 exchange.
 
 ```ts
 import {
@@ -125,8 +135,8 @@ sequenceDiagram
   participant Issuer as PymtHouseIssuer
   participant Signer as RemoteSignerDMZ
 
-  Client->>Facade: POST /api/pymthouse/keys/exchange (pmth_*)
-  Facade->>Issuer: api-key token + M2M token exchange
+  Client->>Facade: POST /api/pymthouse/keys/exchange (app_*_* or pmth_*)
+  Facade->>Issuer: RFC 8693 POST …/apps/{clientId}/oidc/token
   Issuer-->>Facade: short-lived signer JWT + signerUrl
   Facade-->>Client: access_token + signerUrl
   Client->>Signer: POST {signerUrl}/sign-orchestrator-info (Bearer JWT)
@@ -179,54 +189,41 @@ const { manifest, etag, notModified } = await client.getAppManifest({
 
 ## Remote signer identity webhook
 
-For go-livepeer `-remoteSignerWebhookUrl` deployments, builder-sdk provides the
-reference **integration security** webhook that validates end-user credentials and
-returns `UsageIdentity` to the signer (`POST /authorize`).
-
-Transport (signer shared-secret auth, wire protocol) is separate from **end-user
-auth strategies** (`EndUserAuthVerifier`). OIDC/JWT is the default; an API-key
-adapter and a composite "first match" adapter are also provided, and you can
-plug in any custom verifier.
+Identity webhook for go-livepeer `-remoteSignerWebhookUrl` lives in
+[`@livepeer/clearinghouse-identity-webhook`](https://github.com/livepeer/clearinghouse/tree/main/identity-webhook)
+(clearinghouse repo). Pymthouse embeds it at `POST /webhooks/remote-signer`; the
+clearinghouse stack runs it as a standalone service at `POST /authorize`.
 
 ```ts
-import {
-  createApiKeyEndUserVerifier,
-  createOidcRemoteSignerWebhookConfig,
-  createRemoteSignerAuthorizeHandler,
-  type EndUserAuthVerifier,
-} from "@pymthouse/builder-sdk/signer/webhook";
+import { handleAuthorize } from "@livepeer/clearinghouse-identity-webhook/protocol";
+import { createEndUserVerifierFromEnv } from "@livepeer/clearinghouse-identity-webhook/verifiers";
 
-// OIDC (default): Auth0, pymthouse issuer, etc.
-const authorize = createRemoteSignerAuthorizeHandler(
-  createOidcRemoteSignerWebhookConfig({
-    webhookSecret: process.env.WEBHOOK_SECRET!,
-    jwtIssuer: process.env.JWT_ISSUER!,
-    jwtAudience: process.env.JWT_AUDIENCE!,
-    claimMapping: { claimClientId: "azp", usageSubjectType: "auth0_user_id" },
-  }),
-);
-
-// API key: resolve your own keys to a UsageIdentity
-const apiKeyVerifier = createApiKeyEndUserVerifier({
-  issuer: process.env.JWT_ISSUER!,
-  resolveApiKey: async (key) => (await lookup(key)) ?? null,
-});
-
-// Custom provider: implement EndUserAuthVerifier
-const customConfig = {
-  webhookSecret: process.env.WEBHOOK_SECRET!,
-  endUserAuth: {
-    kind: "custom",
-    verify: async ({ authorization, payload, request }) => {
-      // validate provider credentials, return UsageIdentity
-      return { identity: { ... }, expiry: Math.trunc(Date.now() / 1000) + 300 };
-    },
-  } satisfies EndUserAuthVerifier,
-};
+export async function POST(request: Request) {
+  const webhookSecret = process.env.WEBHOOK_SECRET?.trim() || "";
+  if (!webhookSecret) {
+    return Response.json(
+      { status: 500, reason: "server misconfiguration" },
+      { status: 500 },
+    );
+  }
+  return handleAuthorize(request, {
+    webhookSecret,
+    endUserAuth: createEndUserVerifierFromEnv(process.env),
+  });
+}
 ```
 
-Env vars align with `auth0-livepeer` bootstrap output (`.env.livepeer`). For Auth0,
-set `CLAIM_CLIENT_ID=azp` and `USAGE_SUBJECT_TYPE=auth0_user_id`.
+Required env for pymthouse-style JWTs (`client_id` / `external_user_id` /
+`sign:job`): `IDENTITY_AUTH_MODE=oidc`, `IDENTITY_ISSUER`, `OIDC_ISSUER`,
+`OIDC_AUDIENCE`, `OIDC_CLIENT_CLAIM=client_id`,
+`OIDC_SUBJECT_CLAIM=external_user_id`, `OIDC_SUBJECT_TYPE=external_user_id`,
+`OIDC_REQUIRED_SCOPES=sign:job`, and `OIDC_TOKEN_EXCHANGE_BASE_URL` for
+composite `app_<24hex>_<secret>` keys (underscore separator). For API-key or OIDC
+sidecar mode, see clearinghouse `identity-webhook/README.md` and set
+`IDENTITY_AUTH_MODE` plus `OIDC_*` or `DEMO_API_KEY` env vars.
+
+Composite helpers: `isCompositeApiKey`, `splitCompositeApiKey`,
+`formatCompositeApiKey` (also exported from `@pymthouse/builder-sdk/signer/server`).
 
 ## Gateway `--token` helper
 
@@ -286,7 +283,7 @@ Use `decodeGatewayToken(token)` to inspect a bundle in tests/debugging.
 | `@pymthouse/builder-sdk` | `PmtHouseClient`, usage helpers, manifest parsers, token helpers |
 | `@pymthouse/builder-sdk/signer/server` | Exchange handlers, direct signer URL helpers, minting, `buildGatewayToken`/`mintGatewayToken` |
 | `@pymthouse/builder-sdk/signer/gateway` | Gateway `--token` assembler (`buildGatewayToken`, `mintGatewayToken`, `decodeGatewayToken`) |
-| `@pymthouse/builder-sdk/signer/webhook` | Identity webhook for `-remoteSignerWebhookUrl` |
+| `@livepeer/clearinghouse-identity-webhook` | Identity webhook for `-remoteSignerWebhookUrl` (clearinghouse package) |
 | `@pymthouse/builder-sdk/config` | `isPymthouseConfigured`, `readPymthouseEnv` (Edge/middleware-safe) |
 | `@pymthouse/builder-sdk/tokens` | Signer session TTL, JWT shape helpers, `parseSignerSessionExchange` |
 | `@pymthouse/builder-sdk/format` | Wei formatting for Usage API |
