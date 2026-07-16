@@ -144,7 +144,7 @@ describe("mintGatewayToken", () => {
           jwks_uri: `${issuer}/jwks`,
         });
       }
-      if (href.includes("/auth/api-key/signer-session")) {
+      if (href.includes("/oidc/token")) {
         return Response.json({
           access_token: "minted-signer-jwt",
           token_type: "Bearer",
@@ -175,7 +175,7 @@ describe("mintGatewayToken", () => {
       fetchImpl.mock.calls.some(([req]) => {
         const href =
           typeof req === "string" ? req : req instanceof URL ? req.href : req.url;
-        return href.includes("/api/v1/apps/public-client/auth/api-key/signer-session");
+        return href.includes("/api/v1/apps/public-client/oidc/token");
       }),
     ).toBe(true);
   });

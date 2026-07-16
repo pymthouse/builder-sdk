@@ -172,9 +172,16 @@ export {
   createApiKeyExchangeHandler,
   exchangeApiKeyForSigner,
   mintSignerSessionFromApiKey,
+  mintSignerSessionFromApiKeyDirect,
   mintUserAccessTokenFromApiKey,
   parseApiKeyExchangeRequestBody,
 } from "./api-key-exchange.js";
+export {
+  COMPOSITE_API_KEY_RE,
+  formatCompositeApiKey,
+  isCompositeApiKey,
+  splitCompositeApiKey,
+} from "../api-keys.js";
 export {
   assertDirectSignerBaseUrl,
   DIRECT_SIGNER_PATHS,

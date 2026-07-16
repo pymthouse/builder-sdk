@@ -54,6 +54,12 @@ export {
   SIGN_JOB_SCOPE,
 } from "./tokens.js";
 export type { SignerSessionToken } from "./tokens.js";
+export {
+  COMPOSITE_API_KEY_RE,
+  formatCompositeApiKey,
+  isCompositeApiKey,
+  splitCompositeApiKey,
+} from "./api-keys.js";
 export type { LoadAuthorizationServerOptions } from "./discovery.js";
 export type {
   AllowancePolicy,
