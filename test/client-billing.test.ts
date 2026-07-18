@@ -55,7 +55,7 @@ describe("PmtHouseClient billing extensions", () => {
 
   it("getUsageBalance prefers end-user usage/balance after mint", async () => {
     const urls: string[] = [];
-    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: FetchInput) => {
       const url = resolveFetchInputUrl(input);
       urls.push(url);
       if (url.includes("/token")) {

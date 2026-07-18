@@ -173,7 +173,7 @@ describe("PmtHouseClient.fetchUsageForExternalUser", () => {
 
   it("falls back to Builder M2M userId scoping when end-user mint fails", async () => {
     const urls: string[] = [];
-    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       const url = typeof input === "string" ? input : (input as URL | Request).toString();
       urls.push(url);
       if (url.includes("/token")) {

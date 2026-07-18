@@ -721,7 +721,7 @@ export class PmtHouseClient {
     accessToken: string;
     startDate?: string;
     endDate?: string;
-    groupBy?: UsageQueryInput["groupBy"];
+    groupBy?: NonNullable<UsageQueryInput["groupBy"]>;
     includeRetail?: boolean;
   }): Promise<UsageApiResponse> {
     const url = new URL(`${this.getUserApiBaseUrl()}/usage`);
