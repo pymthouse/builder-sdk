@@ -39,6 +39,20 @@ describe("usage aggregation", () => {
     });
   });
 
+  it("matches owner: / bare id variants for the same subject", () => {
+    const byUser: UsageByUserRow[] = [
+      {
+        endUserId: "uuid-1",
+        externalUserId: "uuid-1",
+        requestCount: 5,
+        feeWei: "5",
+        networkFeeUsdMicros: "500",
+      },
+    ];
+    expect(aggregateUsageByExternalUserId(byUser, "owner:uuid-1").requestCount).toBe(5);
+    expect(aggregateUsageByExternalUserId(byUser, "user:uuid-1").requestCount).toBe(5);
+  });
+
   it("sums requestCount and feeWei across duplicate externalUserId buckets", () => {
     const byUser: UsageByUserRow[] = [
       { endUserId: "app-user-id", externalUserId: "naap-user-id", requestCount: 19, feeWei: "1123447749974" },

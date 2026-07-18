@@ -21,12 +21,21 @@ export {
   getUtcCalendarMonthIsoBounds,
   listUsageByPipelineModel,
   mergeUsageByPipelineModel,
+  normalizeUsageExternalUserId,
   parseUsageDateParam,
   summarizeUsageFiatForExternalUser,
   summarizeUsageForExternalUser,
+  usageExternalUserIdsEqual,
 } from "./usage.js";
 export { PmtHouseClient, buildDeviceCodeResource, normalizeUserCode } from "./client.js";
 export { PmtHouseError, toPmtHouseError } from "./errors.js";
+export {
+  ExternalUserIdError,
+  INVALID_EXTERNAL_USER_ID,
+  isEmailShapedExternalUserId,
+  isValidExternalUserId,
+  parseExternalUserId,
+} from "./external-user-id.js";
 export {
   getBuilderApiV1BaseFromIssuerUrl,
   getPymthouseIssuerOrigin,

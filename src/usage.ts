@@ -41,6 +41,27 @@ export function parseUsageDateParam(raw: string | null): string | null {
 }
 
 /**
+ * Strip transitional `owner:` / `user:` prefixes so me-scope matching survives
+ * owner-wallet remapping (bare `{users.id}` vs wire `owner:{id}`).
+ */
+export function normalizeUsageExternalUserId(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("owner:")) {
+    return trimmed.slice("owner:".length);
+  }
+  if (trimmed.startsWith("user:")) {
+    return trimmed.slice("user:".length);
+  }
+  return trimmed;
+}
+
+/** True when two usage `externalUserId` values refer to the same billing subject. */
+export function usageExternalUserIdsEqual(a: string, b: string): boolean {
+  if (a === b) return true;
+  return normalizeUsageExternalUserId(a) === normalizeUsageExternalUserId(b);
+}
+
+/**
  * Sum all `byUser` buckets whose `externalUserId` matches the provider user.
  *
  * PymtHouse may emit multiple rows for the same external user during transitions
@@ -50,7 +71,12 @@ export function aggregateUsageByExternalUserId(
   byUser: UsageByUserRow[] | undefined,
   externalUserId: string,
 ): UsageForExternalUser {
-  const rows = byUser?.filter((row) => row.externalUserId === externalUserId) ?? [];
+  const rows =
+    byUser?.filter(
+      (row) =>
+        row.externalUserId != null &&
+        usageExternalUserIdsEqual(row.externalUserId, externalUserId),
+    ) ?? [];
   if (rows.length === 0) {
     return {
       externalUserId,
@@ -104,7 +130,11 @@ export function getEndUserIdsForExternalUser(
 ): string[] {
   const userIds = new Set<string>();
   for (const row of usage.byUser ?? []) {
-    if (row.externalUserId === externalUserId && row.endUserId !== "unknown") {
+    if (
+      row.externalUserId != null &&
+      usageExternalUserIdsEqual(row.externalUserId, externalUserId) &&
+      row.endUserId !== "unknown"
+    ) {
       userIds.add(row.endUserId);
     }
   }
@@ -133,7 +163,12 @@ export function summarizeUsageFiatForExternalUser(
   let currency = "USD";
 
   for (const row of rows) {
-    if (row.externalUserId !== externalUserId) continue;
+    if (
+      row.externalUserId == null ||
+      !usageExternalUserIdsEqual(row.externalUserId, externalUserId)
+    ) {
+      continue;
+    }
     requestCount += row.requestCount;
     if (row.currency) currency = row.currency;
     if (row.networkFeeUsdMicros) {

@@ -12,14 +12,13 @@ import {
 import { encodeClientSecretBasic } from "./encoding.js";
 import { loadAuthorizationServer, authorizationServerToOidcDocument } from "./discovery.js";
 import { PmtHouseError } from "./errors.js";
+import { parseExternalUserId } from "./external-user-id.js";
 import { parseAppManifestResponse } from "./manifest.js";
 import { stripTrailingSlashes } from "./string-utils.js";
 import { SIGN_JOB_SCOPE, parseSignerSessionExchange } from "./tokens.js";
 import type { SignerSessionToken } from "./tokens.js";
 import {
   buildMeScopeUsagePayload,
-  DEFAULT_MAX_END_USER_IDS,
-  getEndUserIdsForExternalUser,
 } from "./usage.js";
 import {
   mapOAuthError,
@@ -186,8 +185,9 @@ export class PmtHouseClient {
   }
 
   async upsertAppUser(input: UpsertAppUserInput): Promise<AppUserRecord> {
+    const externalUserId = parseExternalUserId(input.externalUserId);
     const payload: Record<string, unknown> = {
-      externalUserId: input.externalUserId,
+      externalUserId,
     };
     if (input.email) payload.email = input.email;
     if (input.status) payload.status = input.status;
@@ -202,8 +202,9 @@ export class PmtHouseClient {
   }
 
   async deleteAppUser(params: { externalUserId: string }): Promise<{ success: boolean }> {
+    const externalUserId = parseExternalUserId(params.externalUserId);
     const url = new URL(`${this.getAppsBaseUrl()}/users`);
-    url.searchParams.set("externalUserId", params.externalUserId);
+    url.searchParams.set("externalUserId", externalUserId);
     return this.requestJson<{ success: boolean }>(url.toString(), {
       method: "DELETE",
       headers: this.builderHeaders(),
@@ -214,7 +215,8 @@ export class PmtHouseClient {
   async mintUserAccessToken(
     input: MintUserAccessTokenInput,
   ): Promise<MintUserAccessTokenResponse> {
-    const url = `${this.getAppsBaseUrl()}/users/${encodeURIComponent(input.externalUserId)}/token`;
+    const externalUserId = parseExternalUserId(input.externalUserId);
+    const url = `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/token`;
     const body = input.scope ? { scope: input.scope } : {};
 
     return this.requestJson<MintUserAccessTokenResponse>(url, {
@@ -473,7 +475,9 @@ export class PmtHouseClient {
     if (input.startDate) url.searchParams.set("startDate", input.startDate);
     if (input.endDate) url.searchParams.set("endDate", input.endDate);
     if (input.groupBy) url.searchParams.set("groupBy", input.groupBy);
-    if (input.userId) url.searchParams.set("userId", input.userId);
+    if (input.userId) {
+      url.searchParams.set("userId", parseExternalUserId(input.userId));
+    }
     if (input.gatewayRequestId) url.searchParams.set("gatewayRequestId", input.gatewayRequestId);
     if (input.includeRetail) url.searchParams.set("include", "retail");
 
@@ -550,18 +554,25 @@ export class PmtHouseClient {
   }
 
   async getUsageBalance(externalUserId: string): Promise<UsageBalanceResponse> {
-    const url = new URL(`${this.getAppsBaseUrl()}/usage/balance`);
-    url.searchParams.set("externalUserId", externalUserId);
-    return this.requestJson<UsageBalanceResponse>(url.toString(), {
-      method: "GET",
-      headers: this.builderHeaders(),
-      cache: "no-store",
-    });
+    const validated = parseExternalUserId(externalUserId);
+    try {
+      const token = await this.ensureEndUserAccessToken(validated);
+      return await this.getEndUserUsageBalance(token.access_token);
+    } catch {
+      const url = new URL(`${this.getAppsBaseUrl()}/usage/balance`);
+      url.searchParams.set("externalUserId", validated);
+      return this.requestJson<UsageBalanceResponse>(url.toString(), {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      });
+    }
   }
 
   async getUserAllowances(externalUserId: string): Promise<UserAllowancesResponse> {
+    const validated = parseExternalUserId(externalUserId);
     return this.requestJson<UserAllowancesResponse>(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/allowances`,
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/allowances`,
       {
         method: "GET",
         headers: this.builderHeaders(),
@@ -574,8 +585,9 @@ export class PmtHouseClient {
     externalUserId: string,
     input: UserAllowanceGrantInput,
   ): Promise<UserAllowancesResponse & { grantedUsdMicros?: string; featureKey?: string }> {
+    const validated = parseExternalUserId(externalUserId);
     return this.requestJson(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/allowances`,
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/allowances`,
       {
         method: "POST",
         headers: this.builderHeaders(),
@@ -586,8 +598,9 @@ export class PmtHouseClient {
   }
 
   async getUserSubscription(externalUserId: string): Promise<UserSubscriptionResponse> {
+    const validated = parseExternalUserId(externalUserId);
     return this.requestJson<UserSubscriptionResponse>(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(externalUserId)}/subscription`,
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription`,
       {
         method: "GET",
         headers: this.builderHeaders(),
@@ -596,6 +609,13 @@ export class PmtHouseClient {
     );
   }
 
+  /**
+   * Session-scoped usage for one `externalUserId`. Prefers end-user
+   * `/api/v1/user/usage*` (forced subject from minted user JWT); falls back to
+   * Builder M2M queries all scoped with `userId=` (never an app-wide scan).
+   *
+   * `maxEndUserIds` is retained for call-site compatibility but unused.
+   */
   async fetchUsageForExternalUser(input: {
     externalUserId: string;
     startDate: string;
@@ -603,38 +623,118 @@ export class PmtHouseClient {
     maxEndUserIds?: number;
     includeRetail?: boolean;
   }): Promise<MeScopeUsagePayload> {
-    const usageByUser = await this.getUsage({
-      startDate: input.startDate,
-      endDate: input.endDate,
-      groupBy: "user",
-      includeRetail: input.includeRetail,
-    });
-    const userIds = getEndUserIdsForExternalUser(usageByUser, input.externalUserId);
-    const cap = input.maxEndUserIds ?? DEFAULT_MAX_END_USER_IDS;
-    const cappedUserIds = userIds.slice(0, cap);
-    const usagePipelineModels = await Promise.all(
-      cappedUserIds.map((userId) =>
+    const externalUserId = parseExternalUserId(input.externalUserId);
+    try {
+      const token = await this.ensureEndUserAccessToken(externalUserId);
+      return await this.fetchEndUserUsage({
+        accessToken: token.access_token,
+        externalUserId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        includeRetail: input.includeRetail,
+      });
+    } catch {
+      // Fall back to Builder M2M + userId= when end-user mint/routes are unavailable.
+      const [usageByUser, usagePipelineModel, usageDaily] = await Promise.all([
+        this.getUsage({
+          startDate: input.startDate,
+          endDate: input.endDate,
+          groupBy: "user",
+          userId: externalUserId,
+          includeRetail: input.includeRetail,
+        }),
         this.getUsage({
           startDate: input.startDate,
           endDate: input.endDate,
           groupBy: "pipeline_model",
-          userId,
+          userId: externalUserId,
           includeRetail: input.includeRetail,
         }),
-      ),
-    );
-    const usageDaily = await this.getUsage({
-      startDate: input.startDate,
-      endDate: input.endDate,
-      groupBy: "daily_pipeline",
-      userId: input.externalUserId,
-    });
+        this.getUsage({
+          startDate: input.startDate,
+          endDate: input.endDate,
+          groupBy: "daily_pipeline",
+          userId: externalUserId,
+        }),
+      ]);
+      return buildMeScopeUsagePayload(
+        usageByUser,
+        externalUserId,
+        usagePipelineModel,
+        usageDaily,
+      );
+    }
+  }
+
+  /**
+   * End-user usage surface (`GET /api/v1/user/usage*`) with Bearer subject forced
+   * by the credential — no client-supplied `userId` / `externalUserId`.
+   */
+  async fetchEndUserUsage(input: {
+    accessToken: string;
+    externalUserId: string;
+    startDate: string;
+    endDate: string;
+    includeRetail?: boolean;
+  }): Promise<MeScopeUsagePayload> {
+    const externalUserId = parseExternalUserId(input.externalUserId);
+    const [usageByUser, usagePipelineModel, usageDaily] = await Promise.all([
+      this.getEndUserUsage({
+        accessToken: input.accessToken,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        groupBy: "user",
+        includeRetail: input.includeRetail,
+      }),
+      this.getEndUserUsage({
+        accessToken: input.accessToken,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        groupBy: "pipeline_model",
+        includeRetail: input.includeRetail,
+      }),
+      this.getEndUserUsage({
+        accessToken: input.accessToken,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        groupBy: "daily_pipeline",
+      }),
+    ]);
     return buildMeScopeUsagePayload(
       usageByUser,
-      input.externalUserId,
-      usagePipelineModels,
+      externalUserId,
+      usagePipelineModel,
       usageDaily,
     );
+  }
+
+  async getEndUserUsageBalance(accessToken: string): Promise<UsageBalanceResponse> {
+    const url = `${this.getUserApiBaseUrl()}/usage/balance`;
+    return this.requestJson<UsageBalanceResponse>(url, {
+      method: "GET",
+      headers: this.endUserHeaders(accessToken),
+      cache: "no-store",
+    });
+  }
+
+  async getEndUserUsage(input: {
+    accessToken: string;
+    startDate?: string;
+    endDate?: string;
+    groupBy?: NonNullable<UsageQueryInput["groupBy"]>;
+    includeRetail?: boolean;
+  }): Promise<UsageApiResponse> {
+    const url = new URL(`${this.getUserApiBaseUrl()}/usage`);
+    if (input.startDate) url.searchParams.set("startDate", input.startDate);
+    if (input.endDate) url.searchParams.set("endDate", input.endDate);
+    if (input.groupBy) url.searchParams.set("groupBy", input.groupBy);
+    if (input.includeRetail) url.searchParams.set("include", "retail");
+
+    return this.requestJson<UsageApiResponse>(url.toString(), {
+      method: "GET",
+      headers: this.endUserHeaders(input.accessToken),
+      cache: "no-store",
+    });
   }
 
   async getAppManifest(opts?: {
@@ -777,6 +877,44 @@ export class PmtHouseClient {
 
   private getAppsBaseUrl(): string {
     return `${this.getIssuerOrigin()}/api/v1/apps/${encodeURIComponent(this.publicClientId)}`;
+  }
+
+  private getUserApiBaseUrl(): string {
+    return `${this.getIssuerOrigin()}/api/v1/user`;
+  }
+
+  /**
+   * Mint an end-user JWT for usage reads. Tries mint first; only provisions on
+   * explicit user-not-found, and never sets/overwrites status (so suspended /
+   * inactive accounts stay that way during read paths).
+   */
+  private async ensureEndUserAccessToken(
+    externalUserId: string,
+  ): Promise<MintUserAccessTokenResponse> {
+    try {
+      return await this.mintUserAccessToken({ externalUserId });
+    } catch (error) {
+      if (!this.isUserNotFoundError(error)) {
+        throw error;
+      }
+      await this.upsertAppUser({ externalUserId });
+      return this.mintUserAccessToken({ externalUserId });
+    }
+  }
+
+  private isUserNotFoundError(error: unknown): boolean {
+    return (
+      error instanceof PmtHouseError &&
+      error.status === 404 &&
+      error.code === "not_found"
+    );
+  }
+
+  private endUserHeaders(accessToken: string): Record<string, string> {
+    return {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    };
   }
 
   private getIssuerOrigin(): string {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+
+- Reject email-shaped and `owner:` / `user:`-prefixed values as `externalUserId`;
+  export `parseExternalUserId` / `isValidExternalUserId` for callers.
+- Scope `fetchUsageForExternalUser` to the target user (`userId=` on all queries);
+  prefer end-user `/api/v1/user/usage*` after minting a user JWT, with Builder M2M fallback.
+- Fuzzy-match transitional `owner:` / `user:` meter labels when aggregating usage.
+
 ## 0.6.0
 
 - API-key → signer exchange uses app-scoped RFC 8693 `POST …/apps/{clientId}/oidc/token`
