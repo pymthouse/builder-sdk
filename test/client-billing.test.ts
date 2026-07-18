@@ -53,10 +53,24 @@ describe("PmtHouseClient billing extensions", () => {
     expect(routing.routing.meteringMode).toBe("platform_ingest");
   });
 
-  it("getUsageBalance calls usage/balance endpoint", async () => {
-    const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: FetchInput) => {
-      captured.url = resolveFetchInputUrl(input);
+  it("getUsageBalance prefers end-user usage/balance after mint", async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      const url = resolveFetchInputUrl(input);
+      urls.push(url);
+      if (url.includes("/users") && !url.includes("/token") && (init?.method ?? "GET") === "POST") {
+        return Response.json({ id: "1", externalUserId: "user-1" });
+      }
+      if (url.includes("/token")) {
+        return Response.json({
+          access_token: "user-jwt",
+          refresh_token: "",
+          token_type: "Bearer",
+          expires_in: 3600,
+          scope: "sign:job",
+          subject_type: "app_user",
+        });
+      }
       return Response.json({
         externalUserId: "user-1",
         balanceUsdMicros: "5000000",
@@ -68,8 +82,7 @@ describe("PmtHouseClient billing extensions", () => {
     }) as unknown as FetchLike;
 
     const balance = await makeClient(fetchMock).getUsageBalance("user-1");
-    expect(captured.url).toContain("/usage/balance");
-    expect(captured.url).toContain("externalUserId=user-1");
+    expect(urls.some((url) => url.includes("/api/v1/user/usage/balance"))).toBe(true);
     expect(balance.balanceUsdMicros).toBe("5000000");
     expect(balance.hasAccess).toBe(true);
   });
