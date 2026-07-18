@@ -623,7 +623,6 @@ export class PmtHouseClient {
     maxEndUserIds?: number;
     includeRetail?: boolean;
   }): Promise<MeScopeUsagePayload> {
-    void input.maxEndUserIds;
     const externalUserId = parseExternalUserId(input.externalUserId);
     try {
       const token = await this.ensureEndUserAccessToken(externalUserId);
@@ -884,14 +883,31 @@ export class PmtHouseClient {
     return `${this.getIssuerOrigin()}/api/v1/user`;
   }
 
+  /**
+   * Mint an end-user JWT for usage reads. Tries mint first; only provisions on
+   * explicit user-not-found, and never sets/overwrites status (so suspended /
+   * inactive accounts stay that way during read paths).
+   */
   private async ensureEndUserAccessToken(
     externalUserId: string,
   ): Promise<MintUserAccessTokenResponse> {
-    await this.upsertAppUser({
-      externalUserId,
-      status: "active",
-    });
-    return this.mintUserAccessToken({ externalUserId });
+    try {
+      return await this.mintUserAccessToken({ externalUserId });
+    } catch (error) {
+      if (!this.isUserNotFoundError(error)) {
+        throw error;
+      }
+      await this.upsertAppUser({ externalUserId });
+      return this.mintUserAccessToken({ externalUserId });
+    }
+  }
+
+  private isUserNotFoundError(error: unknown): boolean {
+    return (
+      error instanceof PmtHouseError &&
+      error.status === 404 &&
+      error.code === "not_found"
+    );
   }
 
   private endUserHeaders(accessToken: string): Record<string, string> {

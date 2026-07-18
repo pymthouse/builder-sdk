@@ -31,4 +31,12 @@ describe("parseExternalUserId", () => {
       expect((err as ExternalUserIdError).code).toBe(INVALID_EXTERNAL_USER_ID);
     }
   });
+
+  it("rejects non-string inputs without coercion", () => {
+    expect(() => parseExternalUserId(123)).toThrow(ExternalUserIdError);
+    expect(() => parseExternalUserId(true)).toThrow(ExternalUserIdError);
+    expect(() => parseExternalUserId(["valid-id"])).toThrow(ExternalUserIdError);
+    expect(() => parseExternalUserId(null)).toThrow(ExternalUserIdError);
+    expect(() => parseExternalUserId(undefined)).toThrow(ExternalUserIdError);
+  });
 });

@@ -8,7 +8,6 @@
 export const INVALID_EXTERNAL_USER_ID = "invalid_external_user_id";
 
 const MACHINE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const EMAIL_LIKE_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export class ExternalUserIdError extends Error {
   readonly code: string;
@@ -27,8 +26,7 @@ export class ExternalUserIdError extends Error {
 }
 
 export function isEmailShapedExternalUserId(value: string): boolean {
-  const trimmed = value.trim();
-  return trimmed.includes("@") || EMAIL_LIKE_RE.test(trimmed);
+  return value.trim().includes("@");
 }
 
 export function isValidExternalUserId(value: string): boolean {
@@ -44,7 +42,10 @@ export function isValidExternalUserId(value: string): boolean {
  * Throws {@link ExternalUserIdError} on empty / email / wire-prefix / charset.
  */
 export function parseExternalUserId(raw: unknown): string {
-  const id = String(raw ?? "").trim();
+  if (typeof raw !== "string") {
+    throw new ExternalUserIdError("externalUserId must be a string");
+  }
+  const id = raw.trim();
   if (!id) {
     throw new ExternalUserIdError("externalUserId is required");
   }

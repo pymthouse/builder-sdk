@@ -58,9 +58,6 @@ describe("PmtHouseClient billing extensions", () => {
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
       const url = resolveFetchInputUrl(input);
       urls.push(url);
-      if (url.includes("/users") && !url.includes("/token") && (init?.method ?? "GET") === "POST") {
-        return Response.json({ id: "1", externalUserId: "user-1" });
-      }
       if (url.includes("/token")) {
         return Response.json({
           access_token: "user-jwt",
@@ -82,6 +79,7 @@ describe("PmtHouseClient billing extensions", () => {
     }) as unknown as FetchLike;
 
     const balance = await makeClient(fetchMock).getUsageBalance("user-1");
+    expect(urls.some((url) => url.includes("/users") && !url.includes("/token"))).toBe(false);
     expect(urls.some((url) => url.includes("/api/v1/user/usage/balance"))).toBe(true);
     expect(balance.balanceUsdMicros).toBe("5000000");
     expect(balance.hasAccess).toBe(true);
