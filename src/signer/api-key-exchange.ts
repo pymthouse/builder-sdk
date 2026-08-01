@@ -17,7 +17,8 @@ import type {
 
 const EXCHANGE_RESPONSE_ERROR = "invalid_exchange_response";
 const TOKEN_EXCHANGE_GRANT = "urn:ietf:params:oauth:grant-type:token-exchange";
-const ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
+/** Canonical RFC 8693 private type for API-key → SignerSession exchange. */
+const SUBJECT_API_KEY_TOKEN_TYPE = "urn:pymthouse:oauth:token-type:api_key";
 
 export async function parseApiKeyExchangeRequestBody(
   request: Request,
@@ -85,7 +86,7 @@ export async function mintSignerSessionFromApiKeyDirect(input: {
   const form = new URLSearchParams({
     grant_type: TOKEN_EXCHANGE_GRANT,
     subject_token: input.apiKey,
-    subject_token_type: ACCESS_TOKEN_TYPE,
+    subject_token_type: SUBJECT_API_KEY_TOKEN_TYPE,
   });
   if (input.scope?.trim()) {
     form.set("scope", input.scope.trim());
