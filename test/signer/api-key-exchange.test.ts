@@ -141,6 +141,9 @@ describe("mintSignerSessionFromApiKey", () => {
         const body = String(init?.body ?? "");
         expect(body).toContain("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange");
         expect(body).toContain("subject_token=pmth_test_key");
+        expect(body).toContain(
+          "subject_token_type=urn%3Apymthouse%3Aoauth%3Atoken-type%3Aapi_key",
+        );
         return Response.json({
           access_token: "signer.jwt",
           token_type: "Bearer",

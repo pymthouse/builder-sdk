@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+- API-key → SignerSession exchange sends canonical RFC 8693
+  `subject_token_type=urn:pymthouse:oauth:token-type:api_key`
+  (PymtHouse still accepts legacy `access_token` for key-shaped subjects).
+
 ## 0.6.1
 
 - Reject email-shaped and `owner:` / `user:`-prefixed values as `externalUserId`;
