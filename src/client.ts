@@ -611,8 +611,9 @@ export class PmtHouseClient {
 
   /**
    * Session-scoped usage for one `externalUserId`. Prefers end-user
-   * `/api/v1/user/usage*` (forced subject from minted user JWT); falls back to
-   * Builder M2M queries all scoped with `userId=` (never an app-wide scan).
+   * `/api/v1/apps/{clientId}/me/usage*` (forced subject from minted user JWT);
+   * falls back to Builder M2M queries all scoped with `userId=` (never an
+   * app-wide scan).
    *
    * `maxEndUserIds` is retained for call-site compatibility but unused.
    */
@@ -667,8 +668,9 @@ export class PmtHouseClient {
   }
 
   /**
-   * End-user usage surface (`GET /api/v1/user/usage*`) with Bearer subject forced
-   * by the credential — no client-supplied `userId` / `externalUserId`.
+   * End-user usage surface (`GET /api/v1/apps/{clientId}/me/usage*`) with
+   * Bearer subject forced by the credential — no client-supplied `userId` /
+   * `externalUserId`.
    */
   async fetchEndUserUsage(input: {
     accessToken: string;
@@ -880,7 +882,7 @@ export class PmtHouseClient {
   }
 
   private getUserApiBaseUrl(): string {
-    return `${this.getIssuerOrigin()}/api/v1/user`;
+    return `${this.getAppsBaseUrl()}/me`;
   }
 
   /**

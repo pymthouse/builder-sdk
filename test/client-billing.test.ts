@@ -80,7 +80,7 @@ describe("PmtHouseClient billing extensions", () => {
 
     const balance = await makeClient(fetchMock).getUsageBalance("user-1");
     expect(urls.some((url) => url.includes("/users") && !url.includes("/token"))).toBe(false);
-    expect(urls.some((url) => url.includes("/api/v1/user/usage/balance"))).toBe(true);
+    expect(urls.some((url) => url.includes("/api/v1/apps/app_x/me/usage/balance"))).toBe(true);
     expect(balance.balanceUsdMicros).toBe("5000000");
     expect(balance.hasAccess).toBe(true);
   });

@@ -107,11 +107,11 @@ describe("PmtHouseClient.fetchUsageForExternalUser", () => {
     });
 
     expect(urls.some((url) => url.includes("/users") && !url.includes("/token"))).toBe(false);
-    const usageUrls = urls.filter((url) => url.includes("/api/v1/user/usage"));
+    const usageUrls = urls.filter((url) => url.includes("/me/usage"));
     expect(usageUrls).toHaveLength(3);
     for (const url of usageUrls) {
       const parsed = new URL(url);
-      expect(parsed.pathname).toBe("/api/v1/user/usage");
+      expect(parsed.pathname).toBe("/api/v1/apps/app_x/me/usage");
       expect(parsed.searchParams.get("userId")).toBeNull();
     }
     expect(new URL(usageUrls[0]!).searchParams.get("groupBy")).toBe("user");

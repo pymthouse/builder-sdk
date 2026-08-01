@@ -1,11 +1,18 @@
 # Changelog
 
+## 0.6.2
+
+- End-user usage calls move to REST
+  `GET /api/v1/apps/{clientId}/me/usage*`. The pathless `/api/v1/user/usage*`
+  routes remain server-side as deprecated aliases, so older SDKs keep working.
+
 ## 0.6.1
 
 - Reject email-shaped and `owner:` / `user:`-prefixed values as `externalUserId`;
   export `parseExternalUserId` / `isValidExternalUserId` for callers.
 - Scope `fetchUsageForExternalUser` to the target user (`userId=` on all queries);
-  prefer end-user `/api/v1/user/usage*` after minting a user JWT, with Builder M2M fallback.
+  prefer end-user `/api/v1/apps/{clientId}/me/usage*` after minting a user JWT,
+  with Builder M2M fallback.
 - Fuzzy-match transitional `owner:` / `user:` meter labels when aggregating usage.
 
 ## 0.6.0
