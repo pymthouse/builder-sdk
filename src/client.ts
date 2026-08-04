@@ -915,15 +915,7 @@ export class PmtHouseClient {
   private async ensureEndUserAccessToken(
     externalUserId: string,
   ): Promise<MintUserAccessTokenResponse> {
-    try {
-      return await this.mintUserAccessToken({ externalUserId });
-    } catch (error) {
-      if (!this.isUserNotFoundError(error)) {
-        throw error;
-      }
-      await this.upsertAppUser({ externalUserId });
-      return this.mintUserAccessToken({ externalUserId });
-    }
+    return this.ensureUserAndMintToken({ externalUserId });
   }
 
   private isUserNotFoundError(error: unknown): boolean {
