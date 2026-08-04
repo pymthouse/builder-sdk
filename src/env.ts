@@ -58,7 +58,9 @@ export function createPmtHouseClientFromEnv(): PmtHouseClient {
     publicClientId: requiredEnv("PYMTHOUSE_PUBLIC_CLIENT_ID"),
     m2mClientId: requiredEnv("PYMTHOUSE_M2M_CLIENT_ID"),
     m2mClientSecret: requiredEnv("PYMTHOUSE_M2M_CLIENT_SECRET"),
-    allowInsecureHttp: issuerUrl.startsWith("http:"),
+    allowInsecureHttp:
+      issuerUrl.startsWith("http:") ||
+      process.env.PYMTHOUSE_ALLOW_INSECURE_HTTP === "1",
     logger: {
       debug: (message, details) => {
         if (process.env.NODE_ENV !== "production") {
