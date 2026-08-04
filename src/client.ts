@@ -228,6 +228,30 @@ export class PmtHouseClient {
   }
 
   /**
+   * Mint a short-lived user access token, auto-provisioning the user on first
+   * call. If `mintUserAccessToken` returns `404 / not_found` the user is
+   * created via `upsertAppUser` and the mint is retried once.
+   *
+   * Use this instead of calling `upsertAppUser` + `mintUserAccessToken`
+   * separately when you do not need to eagerly provision users at sign-up time.
+   * The lazy approach reduces provisioning round-trips for the common path where
+   * the user already exists.
+   */
+  async ensureUserAndMintToken(
+    input: MintUserAccessTokenInput,
+  ): Promise<MintUserAccessTokenResponse> {
+    try {
+      return await this.mintUserAccessToken(input);
+    } catch (error) {
+      if (!this.isUserNotFoundError(error)) {
+        throw error;
+      }
+      await this.upsertAppUser({ externalUserId: input.externalUserId });
+      return this.mintUserAccessToken(input);
+    }
+  }
+
+  /**
    * Exchange a long-lived API key (bare `pmth_*` or composite `app_<24hex>_<secret>`)
    * for a short-lived signer JWT via app-scoped RFC 8693 token exchange.
    */
