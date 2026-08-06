@@ -34,7 +34,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           scope: "@pymthouse"
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm test
       - run: pnpm build
       - name: Verify package.json repository matches this repo
@@ -48,7 +48,7 @@ jobs:
             exit 1
           fi
       - name: Install npm CLI for trusted publishing
-        run: npm install -g npm@11.5.1
+        run: npm install -g npm@11.5.1 --ignore-scripts
       - name: Publish to npm via OIDC (trusted publishing)
         # Use npm CLI (not pnpm publish): OIDC is implemented in npm, not pnpm.
         # Do not set NODE_AUTH_TOKEN here — setup-node wires OIDC from id-token: write.

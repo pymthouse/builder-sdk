@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3
+
+- CI/release workflows install with `--ignore-scripts` (Sonar `githubactions:S6505`).
+- `exchangeApiKeyForUserAccessToken` uses `mintSignerSessionFromApiKeyDirect`
+  instead of the deprecated `mintUserAccessTokenFromApiKey` wrapper.
+
 ## 0.6.2
 
 - Add `createBillingCheckout({ planId, externalUserId, successUrl?, cancelUrl? })`

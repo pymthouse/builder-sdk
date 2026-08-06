@@ -237,8 +237,8 @@ export class PmtHouseClient {
     apiKey: string;
     scope?: string;
   }): Promise<MintUserAccessTokenResponse> {
-    const { mintUserAccessTokenFromApiKey } = await import("./signer/api-key-exchange.js");
-    const minted = await mintUserAccessTokenFromApiKey({
+    const { mintSignerSessionFromApiKeyDirect } = await import("./signer/api-key-exchange.js");
+    const minted = await mintSignerSessionFromApiKeyDirect({
       issuerUrl: this.issuerUrl,
       publicClientId: this.publicClientId,
       apiKey: input.apiKey,
