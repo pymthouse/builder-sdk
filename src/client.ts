@@ -45,6 +45,8 @@ import type {
   TokenExchangeResponse,
   UpsertAppUserInput,
   BillingProduct,
+  CreateBillingCheckoutInput,
+  CreateBillingCheckoutResult,
   ListBillingProductsResult,
   PlanSyncResult,
   SignerRoutingResponse,
@@ -551,6 +553,56 @@ export class PmtHouseClient {
         cache: "no-store",
       },
     );
+  }
+
+  /**
+   * Start end-user Stripe Checkout for a subscription plan
+   * (`POST …/apps/{clientId}/billing/checkout`).
+   * Returns the Checkout URL; pymthouse creates the OpenMeter subscription
+   * before redirecting.
+   */
+  async createBillingCheckout(
+    input: CreateBillingCheckoutInput,
+  ): Promise<CreateBillingCheckoutResult> {
+    const planId = input.planId.trim();
+    const externalUserId = parseExternalUserId(input.externalUserId);
+    if (!planId) {
+      throw new PmtHouseError("planId is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+
+    const body: Record<string, string> = { planId, externalUserId };
+    const successUrl = input.successUrl?.trim();
+    const cancelUrl = input.cancelUrl?.trim();
+    if (successUrl) body.successUrl = successUrl;
+    if (cancelUrl) body.cancelUrl = cancelUrl;
+
+    const result = await this.requestJson<CreateBillingCheckoutResult>(
+      `${this.getAppsBaseUrl()}/billing/checkout`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify(body),
+        cache: "no-store",
+      },
+    );
+
+    const checkoutUrl = result.checkoutUrl?.trim() ?? "";
+    if (!checkoutUrl) {
+      throw new PmtHouseError("Checkout response missing checkoutUrl", {
+        status: 502,
+        code: "invalid_response",
+        details: result,
+      });
+    }
+
+    const subscriptionId = result.subscriptionId?.trim();
+    return {
+      checkoutUrl,
+      ...(subscriptionId ? { subscriptionId } : {}),
+    };
   }
 
   async getUsageBalance(externalUserId: string): Promise<UsageBalanceResponse> {

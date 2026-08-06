@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+- Add `createBillingCheckout({ planId, externalUserId, successUrl?, cancelUrl? })`
+  on `PmtHouseClient` → `POST …/apps/{clientId}/billing/checkout`
+  (returns `{ checkoutUrl, subscriptionId? }`).
+
 ## 0.6.1
 
 - Reject email-shaped and `owner:` / `user:`-prefixed values as `externalUserId`;

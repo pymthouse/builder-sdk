@@ -1,6 +1,6 @@
 {
   "name": "@pymthouse/builder-sdk",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "PymtHouse Builder API and OIDC client (OpenID-certified oauth4webapi)",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -82,7 +82,7 @@
     "test": "vitest run",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "prepack": "pnpm run build"
+    "prepare": "pnpm run build"
   },
   "dependencies": {
     "oauth4webapi": "^3.8.5"

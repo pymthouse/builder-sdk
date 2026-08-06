@@ -109,6 +109,102 @@ describe("PmtHouseClient billing extensions", () => {
     });
   });
 
+  it("listBillingProducts GETs /plans?apiVersion=2", async () => {
+    const captured: { url?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      captured.url = resolveFetchInputUrl(input);
+      return Response.json({
+        apiVersion: 2,
+        products: [
+          {
+            id: "plan_pro",
+            clientId: "app_x",
+            name: "Pro",
+            type: "subscription",
+            status: "active",
+            priceAmount: "10",
+            priceCurrency: "USD",
+            isNetworkDefault: false,
+            isStarterDefault: false,
+            allowance: { includedUsdMicros: null, billingCycle: "monthly" },
+            defaultRetailRateUsd: null,
+            capabilities: [],
+            sync: {
+              status: "synced",
+              syncedAt: null,
+              errorCode: null,
+              errorMessage: null,
+            },
+          },
+        ],
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).listBillingProducts();
+    expect(captured.url).toContain("/plans?apiVersion=2");
+    expect(result.products).toHaveLength(1);
+    expect(result.products[0]?.id).toBe("plan_pro");
+  });
+
+  it("createBillingCheckout POSTs plan + externalUserId", async () => {
+    const captured: { url?: string; body?: string; method?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      captured.method = init?.method;
+      captured.body = typeof init?.body === "string" ? init.body : undefined;
+      return Response.json({
+        checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test",
+        subscriptionId: "sub_om_1",
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).createBillingCheckout({
+      planId: " plan_pro ",
+      externalUserId: "user-abc",
+      successUrl: "https://app.example/ok",
+      cancelUrl: "https://app.example/cancel",
+    });
+    expect(captured.method).toBe("POST");
+    expect(captured.url).toBe(
+      "https://issuer.example/api/v1/apps/app_x/billing/checkout",
+    );
+    expect(JSON.parse(captured.body!)).toEqual({
+      planId: "plan_pro",
+      externalUserId: "user-abc",
+      successUrl: "https://app.example/ok",
+      cancelUrl: "https://app.example/cancel",
+    });
+    expect(result).toEqual({
+      checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test",
+      subscriptionId: "sub_om_1",
+    });
+  });
+
+  it("createBillingCheckout rejects blank planId", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ checkoutUrl: "https://checkout.stripe.com/c/pay/x" }),
+    ) as unknown as FetchLike;
+    await expect(
+      makeClient(fetchMock).createBillingCheckout({
+        planId: "  ",
+        externalUserId: "user-1",
+      }),
+    ).rejects.toMatchObject({ status: 400, code: "invalid_request" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("createBillingCheckout rejects missing checkoutUrl", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ subscriptionId: "sub_only" }),
+    ) as unknown as FetchLike;
+    await expect(
+      makeClient(fetchMock).createBillingCheckout({
+        planId: "plan_pro",
+        externalUserId: "user-1",
+      }),
+    ).rejects.toMatchObject({ status: 502, code: "invalid_response" });
+  });
+
   it("grantUserAllowance maps legacy credit fields", async () => {
     const captured: { url?: string; body?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {

@@ -299,6 +299,21 @@ export interface ListBillingProductsResult {
   products: BillingProduct[];
 }
 
+/** Input for `POST …/apps/{clientId}/billing/checkout`. */
+export interface CreateBillingCheckoutInput {
+  planId: string;
+  externalUserId: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+/** Stripe Checkout session started for an end-user subscription. */
+export interface CreateBillingCheckoutResult {
+  checkoutUrl: string;
+  /** OpenMeter subscription ID when the provider creates it before redirect. */
+  subscriptionId?: string;
+}
+
 /** Aggregated request count and fee for one provider `externalUserId` across duplicate `byUser` buckets. */
 export interface UsageForExternalUser {
   externalUserId: string;
