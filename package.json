@@ -82,8 +82,7 @@
     "test": "vitest run",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "prepare": "pnpm run build",
-    "prepack": "pnpm run build"
+    "prepare": "pnpm run build"
   },
   "dependencies": {
     "oauth4webapi": "^3.8.5"

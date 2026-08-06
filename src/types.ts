@@ -307,10 +307,10 @@ export interface CreateBillingCheckoutInput {
   cancelUrl?: string;
 }
 
-/** Stripe Checkout session started for an end-user plan subscribe. */
+/** Stripe Checkout session started for an end-user subscription. */
 export interface CreateBillingCheckoutResult {
   checkoutUrl: string;
-  /** OpenMeter subscription id when the provider creates it before redirect. */
+  /** OpenMeter subscription ID when the provider creates it before redirect. */
   subscriptionId?: string;
 }
 

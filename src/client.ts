@@ -556,8 +556,8 @@ export class PmtHouseClient {
   }
 
   /**
-   * Start end-user Stripe Checkout for a plan
-   * (`POST …/apps/{publicClientId}/billing/checkout`).
+   * Start end-user Stripe Checkout for a subscription plan
+   * (`POST …/apps/{clientId}/billing/checkout`).
    * Returns the Checkout URL; pymthouse creates the OpenMeter subscription
    * before redirecting.
    */

@@ -308,7 +308,7 @@ const summary = summarizeUsageForExternalUser(usage, externalUserId);
 
 ## Billing: plans, retail usage, signed-ticket ingest
 
-**Plans (apiVersion=2):** `listBillingProducts()` returns `BillingProduct[]` with capability pricing and sync status. `syncBillingProduct(planId)` POSTs to OpenMeter. `createBillingCheckout({ planId, externalUserId, successUrl?, cancelUrl? })` starts Stripe Checkout for an end-user subscribe (`POST …/billing/checkout` → `{ checkoutUrl, subscriptionId? }`).
+**Plans (apiVersion=2):** `listBillingProducts()` returns `{ apiVersion, products: BillingProduct[] }` with capability pricing and sync status. `syncBillingProduct(planId)` POSTs to OpenMeter. `createBillingCheckout({ planId, externalUserId, successUrl?, cancelUrl? })` starts Stripe Checkout for an end-user subscription (`POST …/billing/checkout` → `{ checkoutUrl, subscriptionId? }`).
 
 **Retail estimates:** `getUsage({ includeRetail: true, groupBy: "pipeline_model" })` adds `endUserBillableUsdMicros` / fiat rows when the active plan has retail rates.
 
