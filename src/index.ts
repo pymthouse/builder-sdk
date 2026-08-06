@@ -81,6 +81,8 @@ export type {
   BillingSyncStatus,
   CapabilityPriceRule,
   ClientCredentialsTokenResponse,
+  CreateBillingCheckoutInput,
+  CreateBillingCheckoutResult,
   DeviceApprovalInput,
   FetchLike,
   GetAppManifestResult,
