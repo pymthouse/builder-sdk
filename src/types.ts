@@ -314,6 +314,76 @@ export interface CreateBillingCheckoutResult {
   subscriptionId?: string;
 }
 
+/** One OpenMeter invoice for an app end-user (`GET …/users/{id}/invoices`). */
+export interface AppUserInvoice {
+  id: string;
+  number?: string;
+  status: string;
+  currency: string;
+  totalAmount: string;
+  customerId?: string;
+  customerKey?: string;
+  issuedAt?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  externalInvoicingId?: string;
+  invoiceType?: string;
+}
+
+export interface ListAppUserInvoicesResult {
+  items: AppUserInvoice[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface AppUserInvoiceHostedUrlResult {
+  hostedInvoiceUrl: string | null;
+  invoicePdf: string | null;
+}
+
+/** Card (or Link) on the app end-user Stripe customer. */
+export interface AppUserPaymentMethod {
+  id: string;
+  type: string;
+  brand: string | null;
+  last4: string | null;
+  expMonth: number | null;
+  expYear: number | null;
+  isDefault: boolean;
+}
+
+export interface ListAppUserPaymentMethodsResult {
+  paymentMethods: AppUserPaymentMethod[];
+}
+
+export interface CreateAppUserPaymentMethodCheckoutInput {
+  externalUserId: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+export interface CreateAppUserPaymentMethodCheckoutResult {
+  checkoutUrl: string;
+  sessionId: string | null;
+  customerId: string;
+  hasDefaultPaymentMethod: boolean;
+}
+
+export interface AppUserPaymentMethodMutationResult {
+  paymentMethodId: string | null;
+}
+
+export interface SetAppUserDefaultPaymentMethodResult
+  extends AppUserPaymentMethodMutationResult {
+  updated: boolean;
+}
+
+export interface UnlinkAppUserPaymentMethodResult
+  extends AppUserPaymentMethodMutationResult {
+  unlinked: boolean;
+}
+
 /** Aggregated request count and fee for one provider `externalUserId` across duplicate `byUser` buckets. */
 export interface UsageForExternalUser {
   externalUserId: string;
