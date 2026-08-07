@@ -64,6 +64,10 @@ import type {
   UsageBalanceResponse,
   UserAllowanceGrantInput,
   UserAllowancesResponse,
+  CancelAppUserSubscriptionResult,
+  ChangeAppUserSubscriptionResult,
+  ResumeAppUserSubscriptionResult,
+  SubscriptionTiming,
   UserSubscriptionResponse,
 } from "./types.js";
 import {
@@ -663,6 +667,100 @@ export class PmtHouseClient {
       {
         method: "GET",
         headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Schedule cancel for an app end-user
+   * (`DELETE …/users/{externalUserId}/subscription` with `{ confirm: true }`).
+   * Optional `timing` / `effectiveAt` pick when the plan ends.
+   */
+  async cancelUserSubscription(
+    externalUserId: string,
+    opts?: {
+      confirm?: boolean;
+      timing?: SubscriptionTiming;
+      effectiveAt?: string;
+    },
+  ): Promise<CancelAppUserSubscriptionResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<CancelAppUserSubscriptionResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription`,
+      {
+        method: "DELETE",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({
+          confirm: opts?.confirm ?? true,
+          ...(opts?.timing ? { timing: opts.timing } : {}),
+          ...(opts?.effectiveAt ? { effectiveAt: opts.effectiveAt } : {}),
+        }),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Change an app end-user's plan
+   * (`POST …/users/{externalUserId}/subscription/change`).
+   * When a scheduled successor exists, pass timing / effectiveAt /
+   * confirmReplaceScheduled after prompting the user.
+   */
+  async changeUserSubscription(
+    externalUserId: string,
+    input: {
+      planId: string;
+      timing?: SubscriptionTiming;
+      effectiveAt?: string;
+      confirmReplaceScheduled?: boolean;
+      successUrl?: string;
+      cancelUrl?: string;
+    },
+  ): Promise<ChangeAppUserSubscriptionResult> {
+    const validated = parseExternalUserId(externalUserId);
+    const planId = input.planId.trim();
+    if (!planId) {
+      throw new PmtHouseError("planId is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+    return this.requestJson<ChangeAppUserSubscriptionResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription/change`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({
+          planId,
+          ...(input.timing ? { timing: input.timing } : {}),
+          ...(input.effectiveAt ? { effectiveAt: input.effectiveAt } : {}),
+          ...(input.confirmReplaceScheduled
+            ? { confirmReplaceScheduled: true }
+            : {}),
+          ...(input.successUrl ? { successUrl: input.successUrl } : {}),
+          ...(input.cancelUrl ? { cancelUrl: input.cancelUrl } : {}),
+        }),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Undo a scheduled end-of-cycle cancel
+   * (`DELETE …/users/{externalUserId}/subscription/pending-change`).
+   */
+  async resumeUserSubscription(
+    externalUserId: string,
+    opts?: { confirm?: boolean },
+  ): Promise<ResumeAppUserSubscriptionResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<ResumeAppUserSubscriptionResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription/pending-change`,
+      {
+        method: "DELETE",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({ confirm: opts?.confirm ?? true }),
         cache: "no-store",
       },
     );

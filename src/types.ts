@@ -270,21 +270,87 @@ export interface UserAllowancesResponse {
   };
 }
 
+/** Pending end-of-cycle cancel on an app end-user subscription. */
+export interface AppUserPendingCancel {
+  subscriptionId: string;
+  planId: string | null;
+  planKey: string | null;
+  planName: string | null;
+  effectiveAt: string | null;
+}
+
+/** Sane date range for cancel/change date pickers. */
+export interface SubscriptionTimingOptions {
+  minEffectiveAt: string;
+  maxEffectiveAt: string | null;
+  presets: Array<"immediate" | "next_billing_cycle">;
+}
+
+export type SubscriptionTiming =
+  | "immediate"
+  | "next_billing_cycle"
+  | (string & {});
+
 export interface UserSubscriptionResponse {
   externalUserId: string;
+  /** Present when cancel-at-period-end is scheduled (owner-paid parity). */
+  pendingCancel?: AppUserPendingCancel | null;
+  /** Date-picker ranges for cancel / plan change. */
+  timingOptions?: {
+    cancel: SubscriptionTimingOptions;
+    change: SubscriptionTimingOptions;
+  } | null;
   subscription: {
     id: string;
     status: string;
-    planId: string;
+    planId: string | null;
     planName: string | null;
     planType: string | null;
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
     openmeterSubscriptionId: string | null;
     stripeCheckoutSessionId: string | null;
-    createdAt: string;
+    createdAt: string | null;
     cancelledAt: string | null;
   } | null;
+}
+
+/** Result of `DELETE …/users/{id}/subscription` (schedule cancel). */
+export interface CancelAppUserSubscriptionResult {
+  subscriptionId: string;
+  planId: string | null;
+  planKey: string | null;
+  scheduledPlanKey: string | null;
+  effectiveAt: string | null;
+  alreadyStarter?: boolean;
+  alreadyScheduled?: boolean;
+}
+
+/** Result of plan change `POST …/subscription/change`. */
+export interface ChangeAppUserSubscriptionResult {
+  subscriptionId: string;
+  planId: string;
+  effectiveAt: string | null;
+  timing: SubscriptionTiming;
+  checkoutUrl?: string;
+}
+
+/** Structured 409 when a scheduled successor blocks plan change. */
+export interface ScheduledChangeConflict {
+  code: "scheduled_change_exists";
+  error: string;
+  timingOptions: SubscriptionTimingOptions | null;
+  scheduledSubscriptionId: string | null;
+  scheduledPlanKey: string | null;
+  scheduledActiveFrom: string | null;
+}
+
+/** Result of `DELETE …/users/{id}/subscription/pending-change` (resume). */
+export interface ResumeAppUserSubscriptionResult {
+  resumed: true;
+  subscriptionId: string;
+  planId: string | null;
+  planKey: string | null;
 }
 
 export interface PlanSyncResult {

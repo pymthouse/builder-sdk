@@ -285,6 +285,50 @@ describe("PmtHouseClient billing extensions", () => {
     ).toBe(true);
   });
 
+  it("cancelUserSubscription DELETE subscription with confirm", async () => {
+    const captured: { url?: string; method?: string; body?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      captured.method = init?.method;
+      captured.body = typeof init?.body === "string" ? init.body : undefined;
+      return Response.json({
+        subscriptionId: "sub_1",
+        planId: "plan_1",
+        planKey: "plan_key",
+        scheduledPlanKey: "starter_key",
+        effectiveAt: "2026-09-01T00:00:00.000Z",
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).cancelUserSubscription("user-1");
+    expect(captured.method).toBe("DELETE");
+    expect(captured.url).toContain("/users/user-1/subscription");
+    expect(captured.url).not.toContain("pending-change");
+    expect(JSON.parse(captured.body!)).toEqual({ confirm: true });
+    expect(result.subscriptionId).toBe("sub_1");
+  });
+
+  it("resumeUserSubscription DELETE pending-change with confirm", async () => {
+    const captured: { url?: string; method?: string; body?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      captured.method = init?.method;
+      captured.body = typeof init?.body === "string" ? init.body : undefined;
+      return Response.json({
+        resumed: true,
+        subscriptionId: "sub_1",
+        planId: "plan_1",
+        planKey: "plan_key",
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).resumeUserSubscription("user-1");
+    expect(captured.method).toBe("DELETE");
+    expect(captured.url).toContain("/users/user-1/subscription/pending-change");
+    expect(JSON.parse(captured.body!)).toEqual({ confirm: true });
+    expect(result.resumed).toBe(true);
+  });
+
   it("grantUserAllowance maps legacy credit fields", async () => {
     const captured: { url?: string; body?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {

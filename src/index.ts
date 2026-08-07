@@ -125,5 +125,12 @@ export type {
   UnlinkAppUserPaymentMethodResult,
   UserAllowanceGrantInput,
   UserAllowancesResponse,
+  AppUserPendingCancel,
+  CancelAppUserSubscriptionResult,
+  ChangeAppUserSubscriptionResult,
+  ScheduledChangeConflict,
+  SubscriptionTiming,
+  SubscriptionTimingOptions,
+  ResumeAppUserSubscriptionResult,
   UserSubscriptionResponse,
 } from "./types.js";
