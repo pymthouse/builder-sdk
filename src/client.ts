@@ -1121,20 +1121,7 @@ export class PmtHouseClient {
     const parsed = raw && looksJson ? this.safeParseJson(raw) : null;
 
     if (!response.ok) {
-      const details = (parsed ?? {}) as Record<string, unknown>;
-      let description: string;
-      if (typeof details.error_description === "string") {
-        description = details.error_description;
-      } else if (typeof details.error === "string") {
-        description = details.error;
-      } else {
-        description = `Request failed (${response.status})`;
-      }
-      throw new PmtHouseError(description, {
-        status: response.status,
-        code: typeof details.error === "string" ? details.error : "pymthouse_http_error",
-        details,
-      });
+      throw this.httpError(response.status, (parsed ?? {}) as Record<string, unknown>);
     }
 
     if (!looksJson || parsed === null) {
@@ -1249,12 +1236,20 @@ export class PmtHouseClient {
     }
   }
 
+  /**
+   * The Builder API signals user-not-found with two envelopes: the REST shape
+   * (`{ error: <prose>, code: "not_found" }`) and the OAuth shape used by the
+   * mint-token route (`{ error: "not_found" }`, no `code`). Accept both.
+   */
   private isUserNotFoundError(error: unknown): boolean {
-    return (
-      error instanceof PmtHouseError &&
-      error.status === 404 &&
-      error.code === "not_found"
-    );
+    if (!(error instanceof PmtHouseError) || error.status !== 404) {
+      return false;
+    }
+    if (error.code === "not_found") {
+      return true;
+    }
+    const details = error.details as { error?: unknown } | null | undefined;
+    return details?.error === "not_found";
   }
 
   private endUserHeaders(accessToken: string): Record<string, string> {
@@ -1299,24 +1294,7 @@ export class PmtHouseClient {
     const parsed = raw && looksJson ? this.safeParseJson(raw) : null;
 
     if (!response.ok) {
-      const details = (parsed ?? {}) as Record<string, unknown>;
-      let description: string;
-      if (typeof details.error_description === "string") {
-        description = details.error_description;
-      } else if (typeof details.error === "string") {
-        description = details.error;
-      } else {
-        description = `Request failed (${response.status})`;
-      }
-
-      throw new PmtHouseError(description, {
-        status: response.status,
-        code:
-          typeof details.error === "string"
-            ? details.error
-            : "pymthouse_http_error",
-        details,
-      });
+      throw this.httpError(response.status, (parsed ?? {}) as Record<string, unknown>);
     }
 
     if (!looksJson || parsed === null) {
@@ -1332,6 +1310,33 @@ export class PmtHouseClient {
     }
 
     return parsed as T;
+  }
+
+  /**
+   * Map a non-2xx Builder / Usage API body onto a {@link PmtHouseError}.
+   *
+   * `code` carries the upstream machine-readable `code` field verbatim (e.g.
+   * `nothing_to_resume`). Bodies that omit it get `pymthouse_http_error`, which
+   * is the SDK's reserved "upstream supplied no machine-readable code" marker —
+   * never a value PymtHouse itself sends, so callers can distinguish it from a
+   * real code. Human-readable text stays on `message`, the raw body on
+   * `details`.
+   */
+  private httpError(status: number, details: Record<string, unknown>): PmtHouseError {
+    let description: string;
+    if (typeof details.error_description === "string") {
+      description = details.error_description;
+    } else if (typeof details.error === "string") {
+      description = details.error;
+    } else {
+      description = `Request failed (${status})`;
+    }
+
+    return new PmtHouseError(description, {
+      status,
+      code: typeof details.code === "string" ? details.code : "pymthouse_http_error",
+      details,
+    });
   }
 
   private safeParseJson(value: string): unknown {

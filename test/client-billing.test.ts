@@ -380,6 +380,73 @@ describe("PmtHouseClient billing extensions", () => {
     expect(result.resumed).toBe(true);
   });
 
+  it("resumeUserSubscription surfaces the upstream machine-readable code", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        { error: "No scheduled cancellation to undo", code: "nothing_to_resume" },
+        { status: 404 },
+      ),
+    ) as unknown as FetchLike;
+
+    await expect(
+      makeClient(fetchMock).resumeUserSubscription("user-1"),
+    ).rejects.toMatchObject({
+      status: 404,
+      code: "nothing_to_resume",
+      message: "No scheduled cancellation to undo",
+    });
+  });
+
+  it("marks responses without an upstream code as pymthouse_http_error", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ error: "No scheduled cancellation to undo" }, { status: 404 }),
+    ) as unknown as FetchLike;
+
+    await expect(
+      makeClient(fetchMock).resumeUserSubscription("user-1"),
+    ).rejects.toMatchObject({
+      status: 404,
+      code: "pymthouse_http_error",
+      message: "No scheduled cancellation to undo",
+      details: { error: "No scheduled cancellation to undo" },
+    });
+  });
+
+  it("getUsageBalance still provisions on an OAuth-shaped not_found mint failure", async () => {
+    const urls: string[] = [];
+    let minted = false;
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      const url = resolveFetchInputUrl(input);
+      urls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.includes("/token")) {
+        if (!minted) {
+          minted = true;
+          return Response.json({ error: "not_found" }, { status: 404 });
+        }
+        return Response.json({
+          access_token: "user-jwt",
+          refresh_token: "",
+          token_type: "Bearer",
+          expires_in: 3600,
+          scope: "sign:job",
+          subject_type: "app_user",
+        });
+      }
+      return Response.json({
+        externalUserId: "user-1",
+        balanceUsdMicros: "5000000",
+        consumedUsdMicros: "0",
+        lifetimeGrantedUsdMicros: "5000000",
+        hasAccess: true,
+        remainingUsdMicros: "5000000",
+      });
+    }) as unknown as FetchLike;
+
+    const balance = await makeClient(fetchMock).getUsageBalance("user-1");
+    expect(urls).toContain("POST https://issuer.example/api/v1/apps/app_x/users");
+    expect(balance.balanceUsdMicros).toBe("5000000");
+  });
+
   it("grantUserAllowance maps legacy credit fields", async () => {
     const captured: { url?: string; body?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
