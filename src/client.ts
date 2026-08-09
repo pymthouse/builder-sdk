@@ -932,6 +932,25 @@ export class PmtHouseClient {
     );
   }
 
+  /**
+   * Promote the first attached card to default when none is set
+   * (`PATCH …/payment-methods` with `{ ensureDefault: true }`).
+   */
+  async ensureUserDefaultPaymentMethod(
+    externalUserId: string,
+  ): Promise<SetAppUserDefaultPaymentMethodResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<SetAppUserDefaultPaymentMethodResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
+      {
+        method: "PATCH",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({ ensureDefault: true }),
+        cache: "no-store",
+      },
+    );
+  }
+
   /** Detach one method from the app user's active billing customer. */
   async unlinkUserPaymentMethod(
     externalUserId: string,
