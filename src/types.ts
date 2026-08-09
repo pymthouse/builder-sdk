@@ -232,6 +232,108 @@ export interface UsageBalanceResponse {
   remainingUsdMicros?: string;
 }
 
+/** Every monetary field in the billing state carries its currency. */
+export interface Money {
+  usdMicros: string;
+  usd: string;
+  currency: string;
+}
+
+/**
+ * Spend posture for a subject.
+ * - `active` — credits or included plan usage remain
+ * - `overage` — credits are gone; usage is invoiced as it accrues
+ * - `at_risk` — an invoice is being collected and the buffer is running down
+ * - `blocked` — requests are refused
+ */
+export type BillingStatus = "active" | "overage" | "at_risk" | "blocked";
+
+/**
+ * Why a subject is blocked. The same codes appear in the `reason` field of a
+ * `402` token-mint rejection, so a rejection and a read never disagree.
+ */
+export type BillingReason =
+  | "no_payment_method"
+  | "overage_not_available"
+  | "debt_ceiling_reached"
+  | "billing_unavailable";
+
+export type BillingNextAction =
+  | "none"
+  | "awaiting_settlement"
+  | "add_payment_method"
+  | "add_funds";
+
+/** Whether unbilled debt is an invoice total or a meter-sum fallback. */
+export type BillingDebtSource =
+  | "gathering_invoice"
+  | "meter_estimate"
+  | "unavailable";
+
+export type BillingCollector = "settlement_connect" | "openmeter_stripe";
+
+export interface BillingState {
+  asOf: string;
+  subject: {
+    type: "end_user" | "owner";
+    externalUserId: string | null;
+    billingMode: "merchant" | "owner_rollup";
+  };
+  status: BillingStatus;
+  canSpend: boolean;
+  reason: BillingReason | null;
+  funding: {
+    prepaid: Money;
+    included: Money;
+    spendable: Money;
+    overage: {
+      eligible: boolean;
+      /** `0` means no ceiling. */
+      ceiling: Money;
+      unbilledDebt: Money | null;
+      remaining: Money | null;
+      utilizationBps: number | null;
+      debtSource: BillingDebtSource;
+    };
+  };
+  collection: {
+    mode: "progressive_invoice";
+    collector: BillingCollector;
+    paymentMethod: {
+      hasDefault: boolean | null;
+      brand: string | null;
+      last4: string | null;
+    };
+    nextAction: BillingNextAction;
+    /** Debt level at which an invoice is raised automatically. */
+    leadThreshold: Money;
+    /** Below this an invoice cannot be collected, so none is raised. */
+    minimumCharge: Money;
+    cycle: string;
+    collectionInterval: string;
+    lastRaisedAt: string | null;
+    nextRaiseEligibleAt: string | null;
+  };
+  explain: {
+    headline: string;
+    detail: string;
+    docsUrl: string;
+  };
+}
+
+export type BillingCollectOutcome =
+  | "invoiced"
+  | "skipped"
+  | "rate_limited"
+  | "unavailable"
+  | "error";
+
+export interface BillingCollectResponse {
+  outcome: BillingCollectOutcome;
+  invoiceIds: string[];
+  billingState: BillingState;
+}
+
 export interface SignerRoutingConfig {
   signerApiUrl: string;
   remoteDmzUrl: string | null;

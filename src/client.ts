@@ -50,6 +50,8 @@ import type {
   CreateAppUserPaymentMethodCheckoutResult,
   CreateBillingCheckoutInput,
   CreateBillingCheckoutResult,
+  BillingCollectResponse,
+  BillingState,
   ListAppUserInvoicesResult,
   ListAppUserPaymentMethodsResult,
   ListBillingProductsResult,
@@ -630,6 +632,41 @@ export class PmtHouseClient {
         cache: "no-store",
       });
     }
+  }
+
+  /**
+   * Spend posture for a subject: whether it can spend, how much room is left,
+   * and what happens next. Merchant apps must pass `externalUserId`.
+   */
+  async getBillingState(externalUserId?: string): Promise<BillingState> {
+    const url = new URL(`${this.getAppsBaseUrl()}/billing/state`);
+    if (externalUserId) {
+      url.searchParams.set("externalUserId", parseExternalUserId(externalUserId));
+    }
+    return this.requestJson<BillingState>(url.toString(), {
+      method: "GET",
+      headers: this.builderHeaders(),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Raise an invoice for the subject's unbilled usage now rather than waiting
+   * for the automatic trigger or the daily collection sweep. Idempotent within
+   * a short cooldown; repeat calls return `rate_limited` with current state.
+   */
+  async collectBilling(externalUserId: string): Promise<BillingCollectResponse> {
+    return this.requestJson<BillingCollectResponse>(
+      `${this.getAppsBaseUrl()}/billing/collect`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({
+          externalUserId: parseExternalUserId(externalUserId),
+        }),
+        cache: "no-store",
+      },
+    );
   }
 
   async getUserAllowances(externalUserId: string): Promise<UserAllowancesResponse> {

@@ -109,6 +109,57 @@ describe("PmtHouseClient billing extensions", () => {
     });
   });
 
+  it("getBillingState GETs billing/state scoped to the external user", async () => {
+    const captured: { url?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      captured.url = resolveFetchInputUrl(input);
+      return Response.json({
+        status: "overage",
+        canSpend: true,
+        reason: null,
+      });
+    }) as unknown as FetchLike;
+
+    const state = await makeClient(fetchMock).getBillingState("user-1");
+    const url = new URL(captured.url!);
+    expect(url.pathname).toContain("/billing/state");
+    expect(url.searchParams.get("externalUserId")).toBe("user-1");
+    expect(state.status).toBe("overage");
+  });
+
+  it("getBillingState omits externalUserId for owner rollup apps", async () => {
+    const captured: { url?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      captured.url = resolveFetchInputUrl(input);
+      return Response.json({ status: "active", canSpend: true, reason: null });
+    }) as unknown as FetchLike;
+
+    await makeClient(fetchMock).getBillingState();
+    expect(new URL(captured.url!).searchParams.has("externalUserId")).toBe(false);
+  });
+
+  it("collectBilling POSTs billing/collect and returns the refreshed state", async () => {
+    const captured: { url?: string; body?: string; method?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      captured.method = init?.method;
+      captured.body = typeof init?.body === "string" ? init.body : undefined;
+      return Response.json({
+        outcome: "invoiced",
+        invoiceIds: ["inv_1"],
+        billingState: { status: "at_risk", canSpend: true, reason: null },
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).collectBilling("user-1");
+    expect(captured.method).toBe("POST");
+    expect(captured.url).toContain("/billing/collect");
+    expect(JSON.parse(captured.body!)).toEqual({ externalUserId: "user-1" });
+    expect(result.outcome).toBe("invoiced");
+    expect(result.invoiceIds).toEqual(["inv_1"]);
+    expect(result.billingState.status).toBe("at_risk");
+  });
+
   it("listBillingProducts GETs /plans?apiVersion=2", async () => {
     const captured: { url?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput) => {
