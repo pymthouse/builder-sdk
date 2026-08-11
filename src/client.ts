@@ -641,7 +641,7 @@ export class PmtHouseClient {
    */
   async getBillingState(externalUserId?: string): Promise<BillingState> {
     const url = new URL(`${this.getAppsBaseUrl()}/billing/state`);
-    if (externalUserId) {
+    if (externalUserId !== undefined) {
       url.searchParams.set("externalUserId", parseExternalUserId(externalUserId));
     }
     return this.requestJson<BillingState>(url.toString(), {
@@ -1277,7 +1277,9 @@ export class PmtHouseClient {
   /**
    * The Builder API signals user-not-found with two envelopes: the REST shape
    * (`{ error: <prose>, code: "not_found" }`) and the OAuth shape used by the
-   * mint-token route (`{ error: "not_found" }`, no `code`). Accept both.
+   * mint-token route (`{ error: "not_found" }`, no `code`). `httpError` promotes
+   * the latter onto `error.code`; the details fallback keeps provisioning
+   * resilient if that mapping ever changes.
    */
   private isUserNotFoundError(error: unknown): boolean {
     if (!(error instanceof PmtHouseError) || error.status !== 404) {
@@ -1353,12 +1355,12 @@ export class PmtHouseClient {
   /**
    * Map a non-2xx Builder / Usage API body onto a {@link PmtHouseError}.
    *
-   * `code` carries the upstream machine-readable `code` field verbatim (e.g.
-   * `nothing_to_resume`). Bodies that omit it get `pymthouse_http_error`, which
-   * is the SDK's reserved "upstream supplied no machine-readable code" marker —
-   * never a value PymtHouse itself sends, so callers can distinguish it from a
-   * real code. Human-readable text stays on `message`, the raw body on
-   * `details`.
+   * `code` prefers the upstream machine-readable `code` field (e.g.
+   * `nothing_to_resume`). When that is absent, OAuth-shaped envelopes that put
+   * a snake_case token in `error` (e.g. `{ error: "not_found" }`) still expose
+   * that token as `code`. Prose `error` values stay on `message` only; bodies
+   * with neither form get `pymthouse_http_error`, which is the SDK's reserved
+   * "no machine-readable code" marker — never a value PymtHouse itself sends.
    */
   private httpError(status: number, details: Record<string, unknown>): PmtHouseError {
     let description: string;
@@ -1372,9 +1374,25 @@ export class PmtHouseClient {
 
     return new PmtHouseError(description, {
       status,
-      code: typeof details.code === "string" ? details.code : "pymthouse_http_error",
+      code: this.resolveHttpErrorCode(details),
       details,
     });
+  }
+
+  /** OAuth / machine token: lowercase snake_case, never prose. */
+  private static readonly MACHINE_ERROR_CODE_RE = /^[a-z][a-z0-9_]*$/;
+
+  private resolveHttpErrorCode(details: Record<string, unknown>): string {
+    if (typeof details.code === "string") {
+      return details.code;
+    }
+    if (
+      typeof details.error === "string" &&
+      PmtHouseClient.MACHINE_ERROR_CODE_RE.test(details.error)
+    ) {
+      return details.error;
+    }
+    return "pymthouse_http_error";
   }
 
   private safeParseJson(value: string): unknown {

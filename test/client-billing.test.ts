@@ -138,6 +138,17 @@ describe("PmtHouseClient billing extensions", () => {
     expect(new URL(captured.url!).searchParams.has("externalUserId")).toBe(false);
   });
 
+  it("getBillingState rejects an empty-string externalUserId", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ status: "active", canSpend: true, reason: null }),
+    ) as unknown as FetchLike;
+
+    await expect(makeClient(fetchMock).getBillingState("")).rejects.toMatchObject({
+      code: "invalid_external_user_id",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("collectBilling POSTs billing/collect and returns the refreshed state", async () => {
     const captured: { url?: string; body?: string; method?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
@@ -437,6 +448,20 @@ describe("PmtHouseClient billing extensions", () => {
       code: "pymthouse_http_error",
       message: "No scheduled cancellation to undo",
       details: { error: "No scheduled cancellation to undo" },
+    });
+  });
+
+  it("promotes OAuth-shaped snake_case error tokens onto code", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ error: "not_found" }, { status: 404 }),
+    ) as unknown as FetchLike;
+
+    await expect(
+      makeClient(fetchMock).resumeUserSubscription("user-1"),
+    ).rejects.toMatchObject({
+      status: 404,
+      code: "not_found",
+      message: "not_found",
     });
   });
 

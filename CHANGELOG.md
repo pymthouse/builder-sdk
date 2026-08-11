@@ -5,7 +5,7 @@
 - Add `getBillingState` / `collectBilling` for spend-posture and on-demand collection.
 - Add `listUserSubscriptions` for OpenMeter supersession history.
 - Add `ensureUserDefaultPaymentMethod` to promote an attached card when none is default.
-- `PmtHouseError.code` now carries the upstream machine-readable `code` (prose stays on `message`).
+- `PmtHouseError.code` now carries the upstream machine-readable `code` (prose stays on `message`); OAuth-shaped `{ error: "not_found" }` envelopes promote the snake_case token onto `code`.
 
 ## 0.6.4
 
