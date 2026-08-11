@@ -50,8 +50,11 @@ import type {
   CreateAppUserPaymentMethodCheckoutResult,
   CreateBillingCheckoutInput,
   CreateBillingCheckoutResult,
+  BillingCollectResponse,
+  BillingState,
   ListAppUserInvoicesResult,
   ListAppUserPaymentMethodsResult,
+  ListAppUserSubscriptionsResult,
   ListBillingProductsResult,
   PlanSyncResult,
   SignerRoutingResponse,
@@ -632,6 +635,41 @@ export class PmtHouseClient {
     }
   }
 
+  /**
+   * Spend posture for a subject: whether it can spend, how much room is left,
+   * and what happens next. Merchant apps must pass `externalUserId`.
+   */
+  async getBillingState(externalUserId?: string): Promise<BillingState> {
+    const url = new URL(`${this.getAppsBaseUrl()}/billing/state`);
+    if (externalUserId !== undefined) {
+      url.searchParams.set("externalUserId", parseExternalUserId(externalUserId));
+    }
+    return this.requestJson<BillingState>(url.toString(), {
+      method: "GET",
+      headers: this.builderHeaders(),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Raise an invoice for the subject's unbilled usage now rather than waiting
+   * for the automatic trigger or the daily collection sweep. Idempotent within
+   * a short cooldown; repeat calls return `rate_limited` with current state.
+   */
+  async collectBilling(externalUserId: string): Promise<BillingCollectResponse> {
+    return this.requestJson<BillingCollectResponse>(
+      `${this.getAppsBaseUrl()}/billing/collect`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({
+          externalUserId: parseExternalUserId(externalUserId),
+        }),
+        cache: "no-store",
+      },
+    );
+  }
+
   async getUserAllowances(externalUserId: string): Promise<UserAllowancesResponse> {
     const validated = parseExternalUserId(externalUserId);
     return this.requestJson<UserAllowancesResponse>(
@@ -664,6 +702,24 @@ export class PmtHouseClient {
     const validated = parseExternalUserId(externalUserId);
     return this.requestJson<UserSubscriptionResponse>(
       `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * List OpenMeter subscription supersession history for an app end-user
+   * (`GET …/users/{externalUserId}/subscriptions`).
+   */
+  async listUserSubscriptions(
+    externalUserId: string,
+  ): Promise<ListAppUserSubscriptionsResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<ListAppUserSubscriptionsResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscriptions`,
       {
         method: "GET",
         headers: this.builderHeaders(),
@@ -895,6 +951,25 @@ export class PmtHouseClient {
     );
   }
 
+  /**
+   * Promote the first attached card to default when none is set
+   * (`PATCH …/payment-methods` with `{ ensureDefault: true }`).
+   */
+  async ensureUserDefaultPaymentMethod(
+    externalUserId: string,
+  ): Promise<SetAppUserDefaultPaymentMethodResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<SetAppUserDefaultPaymentMethodResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
+      {
+        method: "PATCH",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({ ensureDefault: true }),
+        cache: "no-store",
+      },
+    );
+  }
+
   /** Detach one method from the app user's active billing customer. */
   async unlinkUserPaymentMethod(
     externalUserId: string,
@@ -1084,20 +1159,7 @@ export class PmtHouseClient {
     const parsed = raw && looksJson ? this.safeParseJson(raw) : null;
 
     if (!response.ok) {
-      const details = (parsed ?? {}) as Record<string, unknown>;
-      let description: string;
-      if (typeof details.error_description === "string") {
-        description = details.error_description;
-      } else if (typeof details.error === "string") {
-        description = details.error;
-      } else {
-        description = `Request failed (${response.status})`;
-      }
-      throw new PmtHouseError(description, {
-        status: response.status,
-        code: typeof details.error === "string" ? details.error : "pymthouse_http_error",
-        details,
-      });
+      throw this.httpError(response.status, (parsed ?? {}) as Record<string, unknown>);
     }
 
     if (!looksJson || parsed === null) {
@@ -1212,12 +1274,22 @@ export class PmtHouseClient {
     }
   }
 
+  /**
+   * The Builder API signals user-not-found with two envelopes: the REST shape
+   * (`{ error: <prose>, code: "not_found" }`) and the OAuth shape used by the
+   * mint-token route (`{ error: "not_found" }`, no `code`). `httpError` promotes
+   * the latter onto `error.code`; the details fallback keeps provisioning
+   * resilient if that mapping ever changes.
+   */
   private isUserNotFoundError(error: unknown): boolean {
-    return (
-      error instanceof PmtHouseError &&
-      error.status === 404 &&
-      error.code === "not_found"
-    );
+    if (!(error instanceof PmtHouseError) || error.status !== 404) {
+      return false;
+    }
+    if (error.code === "not_found") {
+      return true;
+    }
+    const details = error.details as { error?: unknown } | null | undefined;
+    return details?.error === "not_found";
   }
 
   private endUserHeaders(accessToken: string): Record<string, string> {
@@ -1262,24 +1334,7 @@ export class PmtHouseClient {
     const parsed = raw && looksJson ? this.safeParseJson(raw) : null;
 
     if (!response.ok) {
-      const details = (parsed ?? {}) as Record<string, unknown>;
-      let description: string;
-      if (typeof details.error_description === "string") {
-        description = details.error_description;
-      } else if (typeof details.error === "string") {
-        description = details.error;
-      } else {
-        description = `Request failed (${response.status})`;
-      }
-
-      throw new PmtHouseError(description, {
-        status: response.status,
-        code:
-          typeof details.error === "string"
-            ? details.error
-            : "pymthouse_http_error",
-        details,
-      });
+      throw this.httpError(response.status, (parsed ?? {}) as Record<string, unknown>);
     }
 
     if (!looksJson || parsed === null) {
@@ -1295,6 +1350,49 @@ export class PmtHouseClient {
     }
 
     return parsed as T;
+  }
+
+  /**
+   * Map a non-2xx Builder / Usage API body onto a {@link PmtHouseError}.
+   *
+   * `code` prefers the upstream machine-readable `code` field (e.g.
+   * `nothing_to_resume`). When that is absent, OAuth-shaped envelopes that put
+   * a snake_case token in `error` (e.g. `{ error: "not_found" }`) still expose
+   * that token as `code`. Prose `error` values stay on `message` only; bodies
+   * with neither form get `pymthouse_http_error`, which is the SDK's reserved
+   * "no machine-readable code" marker — never a value PymtHouse itself sends.
+   */
+  private httpError(status: number, details: Record<string, unknown>): PmtHouseError {
+    let description: string;
+    if (typeof details.error_description === "string") {
+      description = details.error_description;
+    } else if (typeof details.error === "string") {
+      description = details.error;
+    } else {
+      description = `Request failed (${status})`;
+    }
+
+    return new PmtHouseError(description, {
+      status,
+      code: this.resolveHttpErrorCode(details),
+      details,
+    });
+  }
+
+  /** OAuth / machine token: lowercase snake_case, never prose. */
+  private static readonly MACHINE_ERROR_CODE_RE = /^[a-z][a-z0-9_]*$/;
+
+  private resolveHttpErrorCode(details: Record<string, unknown>): string {
+    if (typeof details.code === "string") {
+      return details.code;
+    }
+    if (
+      typeof details.error === "string" &&
+      PmtHouseClient.MACHINE_ERROR_CODE_RE.test(details.error)
+    ) {
+      return details.error;
+    }
+    return "pymthouse_http_error";
   }
 
   private safeParseJson(value: string): unknown {

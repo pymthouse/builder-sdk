@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.5
+
+- Add `getBillingState` / `collectBilling` for spend-posture and on-demand collection.
+- Add `listUserSubscriptions` for OpenMeter supersession history.
+- Add `ensureUserDefaultPaymentMethod` to promote an attached card when none is default.
+- `PmtHouseError.code` now carries the upstream machine-readable `code` (prose stays on `message`); OAuth-shaped `{ error: "not_found" }` envelopes promote the snake_case token onto `code`.
+
+## 0.6.4
+
+- Add app-user payment method and invoice helpers, plus subscription
+  cancel / change / resume on `PmtHouseClient`.
+
 ## 0.6.3
 
 - CI/release workflows install with `--ignore-scripts` (Sonar `githubactions:S6505`).
