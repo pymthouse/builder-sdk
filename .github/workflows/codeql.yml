@@ -21,7 +21,7 @@ jobs:
       matrix:
         include:
           - language: javascript-typescript
-            build-mode: manual
+            build-mode: none
           # Re-scan workflow YAML so Actions findings (e.g. missing permissions)
           # can auto-close once fixed — alert #5 was stuck open while only JS/TS ran.
           - language: actions
@@ -33,6 +33,7 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
+      # Optional build for JS/TS; CodeQL uses build-mode none (extractor walks sources).
       - if: matrix.language == 'javascript-typescript'
         uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a # v6
       - if: matrix.language == 'javascript-typescript'
