@@ -2,6 +2,7 @@
 
 ## 0.6.5
 
+- Bump `pnpm.overrides.js-yaml` to `4.3.1` ([GHSA-5p4m-2wfm-xmqj](https://github.com/advisories/GHSA-5p4m-2wfm-xmqj) / Dependabot [#23](https://github.com/pymthouse/builder-sdk/security/dependabot/23)).
 - API-key → SignerSession exchange sends canonical RFC 8693
   `subject_token_type=urn:pymthouse:oauth:token-type:api_key`
   (PymtHouse still accepts legacy `access_token` for key-shaped subjects).
