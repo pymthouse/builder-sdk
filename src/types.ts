@@ -270,21 +270,87 @@ export interface UserAllowancesResponse {
   };
 }
 
+/** Pending end-of-cycle cancel on an app end-user subscription. */
+export interface AppUserPendingCancel {
+  subscriptionId: string;
+  planId: string | null;
+  planKey: string | null;
+  planName: string | null;
+  effectiveAt: string | null;
+}
+
+/** Sane date range for cancel/change date pickers. */
+export interface SubscriptionTimingOptions {
+  minEffectiveAt: string;
+  maxEffectiveAt: string | null;
+  presets: Array<"immediate" | "next_billing_cycle">;
+}
+
+export type SubscriptionTiming =
+  | "immediate"
+  | "next_billing_cycle"
+  | (string & {});
+
 export interface UserSubscriptionResponse {
   externalUserId: string;
+  /** Present when cancel-at-period-end is scheduled (owner-paid parity). */
+  pendingCancel?: AppUserPendingCancel | null;
+  /** Date-picker ranges for cancel / plan change. */
+  timingOptions?: {
+    cancel: SubscriptionTimingOptions;
+    change: SubscriptionTimingOptions;
+  } | null;
   subscription: {
     id: string;
     status: string;
-    planId: string;
+    planId: string | null;
     planName: string | null;
     planType: string | null;
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
     openmeterSubscriptionId: string | null;
     stripeCheckoutSessionId: string | null;
-    createdAt: string;
+    createdAt: string | null;
     cancelledAt: string | null;
   } | null;
+}
+
+/** Result of `DELETE …/users/{id}/subscription` (schedule cancel). */
+export interface CancelAppUserSubscriptionResult {
+  subscriptionId: string;
+  planId: string | null;
+  planKey: string | null;
+  scheduledPlanKey: string | null;
+  effectiveAt: string | null;
+  alreadyStarter?: boolean;
+  alreadyScheduled?: boolean;
+}
+
+/** Result of plan change `POST …/subscription/change`. */
+export interface ChangeAppUserSubscriptionResult {
+  subscriptionId: string;
+  planId: string;
+  effectiveAt: string | null;
+  timing: SubscriptionTiming;
+  checkoutUrl?: string;
+}
+
+/** Structured 409 when a scheduled successor blocks plan change. */
+export interface ScheduledChangeConflict {
+  code: "scheduled_change_exists";
+  error: string;
+  timingOptions: SubscriptionTimingOptions | null;
+  scheduledSubscriptionId: string | null;
+  scheduledPlanKey: string | null;
+  scheduledActiveFrom: string | null;
+}
+
+/** Result of `DELETE …/users/{id}/subscription/pending-change` (resume). */
+export interface ResumeAppUserSubscriptionResult {
+  resumed: true;
+  subscriptionId: string;
+  planId: string | null;
+  planKey: string | null;
 }
 
 export interface PlanSyncResult {
@@ -312,6 +378,76 @@ export interface CreateBillingCheckoutResult {
   checkoutUrl: string;
   /** OpenMeter subscription ID when the provider creates it before redirect. */
   subscriptionId?: string;
+}
+
+/** One OpenMeter invoice for an app end-user (`GET …/users/{id}/invoices`). */
+export interface AppUserInvoice {
+  id: string;
+  number?: string;
+  status: string;
+  currency: string;
+  totalAmount: string;
+  customerId?: string;
+  customerKey?: string;
+  issuedAt?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  externalInvoicingId?: string;
+  invoiceType?: string;
+}
+
+export interface ListAppUserInvoicesResult {
+  items: AppUserInvoice[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface AppUserInvoiceHostedUrlResult {
+  hostedInvoiceUrl: string | null;
+  invoicePdf: string | null;
+}
+
+/** Card (or Link) on the app end-user Stripe customer. */
+export interface AppUserPaymentMethod {
+  id: string;
+  type: string;
+  brand: string | null;
+  last4: string | null;
+  expMonth: number | null;
+  expYear: number | null;
+  isDefault: boolean;
+}
+
+export interface ListAppUserPaymentMethodsResult {
+  paymentMethods: AppUserPaymentMethod[];
+}
+
+export interface CreateAppUserPaymentMethodCheckoutInput {
+  externalUserId: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}
+
+export interface CreateAppUserPaymentMethodCheckoutResult {
+  checkoutUrl: string;
+  sessionId: string | null;
+  customerId: string;
+  hasDefaultPaymentMethod: boolean;
+}
+
+export interface AppUserPaymentMethodMutationResult {
+  paymentMethodId: string | null;
+}
+
+export interface SetAppUserDefaultPaymentMethodResult
+  extends AppUserPaymentMethodMutationResult {
+  updated: boolean;
+}
+
+export interface UnlinkAppUserPaymentMethodResult
+  extends AppUserPaymentMethodMutationResult {
+  unlinked: boolean;
 }
 
 /** Aggregated request count and fee for one provider `externalUserId` across duplicate `byUser` buckets. */

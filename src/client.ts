@@ -44,19 +44,30 @@ import type {
   PmtHouseClientOptions,
   TokenExchangeResponse,
   UpsertAppUserInput,
+  AppUserInvoiceHostedUrlResult,
   BillingProduct,
+  CreateAppUserPaymentMethodCheckoutInput,
+  CreateAppUserPaymentMethodCheckoutResult,
   CreateBillingCheckoutInput,
   CreateBillingCheckoutResult,
+  ListAppUserInvoicesResult,
+  ListAppUserPaymentMethodsResult,
   ListBillingProductsResult,
   PlanSyncResult,
   SignerRoutingResponse,
   SignedTicketIngestInput,
   SignedTicketIngestResult,
+  SetAppUserDefaultPaymentMethodResult,
+  UnlinkAppUserPaymentMethodResult,
   UsageApiResponse,
   UsageQueryInput,
   UsageBalanceResponse,
   UserAllowanceGrantInput,
   UserAllowancesResponse,
+  CancelAppUserSubscriptionResult,
+  ChangeAppUserSubscriptionResult,
+  ResumeAppUserSubscriptionResult,
+  SubscriptionTiming,
   UserSubscriptionResponse,
 } from "./types.js";
 import {
@@ -656,6 +667,253 @@ export class PmtHouseClient {
       {
         method: "GET",
         headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Schedule cancel for an app end-user
+   * (`DELETE …/users/{externalUserId}/subscription` with `{ confirm: true }`).
+   * Optional `timing` / `effectiveAt` pick when the plan ends.
+   */
+  async cancelUserSubscription(
+    externalUserId: string,
+    opts?: {
+      confirm?: boolean;
+      timing?: SubscriptionTiming;
+      effectiveAt?: string;
+    },
+  ): Promise<CancelAppUserSubscriptionResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<CancelAppUserSubscriptionResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription`,
+      {
+        method: "DELETE",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({
+          confirm: opts?.confirm ?? true,
+          ...(opts?.timing ? { timing: opts.timing } : {}),
+          ...(opts?.effectiveAt ? { effectiveAt: opts.effectiveAt } : {}),
+        }),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Change an app end-user's plan
+   * (`POST …/users/{externalUserId}/subscription/change`).
+   * When a scheduled successor exists, pass timing / effectiveAt /
+   * confirmReplaceScheduled after prompting the user.
+   */
+  async changeUserSubscription(
+    externalUserId: string,
+    input: {
+      planId: string;
+      timing?: SubscriptionTiming;
+      effectiveAt?: string;
+      confirmReplaceScheduled?: boolean;
+      successUrl?: string;
+      cancelUrl?: string;
+    },
+  ): Promise<ChangeAppUserSubscriptionResult> {
+    const validated = parseExternalUserId(externalUserId);
+    const planId = input.planId.trim();
+    if (!planId) {
+      throw new PmtHouseError("planId is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+    return this.requestJson<ChangeAppUserSubscriptionResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription/change`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({
+          planId,
+          ...(input.timing ? { timing: input.timing } : {}),
+          ...(input.effectiveAt ? { effectiveAt: input.effectiveAt } : {}),
+          ...(input.confirmReplaceScheduled
+            ? { confirmReplaceScheduled: true }
+            : {}),
+          ...(input.successUrl ? { successUrl: input.successUrl } : {}),
+          ...(input.cancelUrl ? { cancelUrl: input.cancelUrl } : {}),
+        }),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Undo a scheduled end-of-cycle cancel
+   * (`DELETE …/users/{externalUserId}/subscription/pending-change`).
+   */
+  async resumeUserSubscription(
+    externalUserId: string,
+    opts?: { confirm?: boolean },
+  ): Promise<ResumeAppUserSubscriptionResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<ResumeAppUserSubscriptionResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription/pending-change`,
+      {
+        method: "DELETE",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({ confirm: opts?.confirm ?? true }),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * List OpenMeter invoices for an app end-user
+   * (`GET …/users/{externalUserId}/invoices`).
+   */
+  async listUserInvoices(
+    externalUserId: string,
+    opts?: { page?: number; pageSize?: number },
+  ): Promise<ListAppUserInvoicesResult> {
+    const validated = parseExternalUserId(externalUserId);
+    const url = new URL(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/invoices`,
+    );
+    if (opts?.page != null) url.searchParams.set("page", String(opts.page));
+    if (opts?.pageSize != null) {
+      url.searchParams.set("pageSize", String(opts.pageSize));
+    }
+    return this.requestJson<ListAppUserInvoicesResult>(url.toString(), {
+      method: "GET",
+      headers: this.builderHeaders(),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Resolve Stripe hosted invoice URL / PDF for one end-user invoice
+   * (`GET …/users/{externalUserId}/invoices/{invoiceId}/hosted-url`).
+   */
+  async getUserInvoiceHostedUrl(
+    externalUserId: string,
+    invoiceId: string,
+  ): Promise<AppUserInvoiceHostedUrlResult> {
+    const validated = parseExternalUserId(externalUserId);
+    const id = invoiceId.trim();
+    if (!id) {
+      throw new PmtHouseError("invoiceId is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+    return this.requestJson<AppUserInvoiceHostedUrlResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/invoices/${encodeURIComponent(id)}/hosted-url`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * List payment methods on the app end-user Stripe customer
+   * (`GET …/users/{externalUserId}/payment-methods`).
+   */
+  async listUserPaymentMethods(
+    externalUserId: string,
+  ): Promise<ListAppUserPaymentMethodsResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<ListAppUserPaymentMethodsResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * Start setup-only Stripe Checkout for an app end-user payment method
+   * (`POST …/users/{externalUserId}/payment-methods`). Does not change plan.
+   */
+  async createUserPaymentMethodCheckout(
+    input: CreateAppUserPaymentMethodCheckoutInput,
+  ): Promise<CreateAppUserPaymentMethodCheckoutResult> {
+    const validated = parseExternalUserId(input.externalUserId);
+    const body: Record<string, string> = {};
+    const successUrl = input.successUrl?.trim();
+    const cancelUrl = input.cancelUrl?.trim();
+    if (successUrl) body.successUrl = successUrl;
+    if (cancelUrl) body.cancelUrl = cancelUrl;
+
+    const result = await this.requestJson<CreateAppUserPaymentMethodCheckoutResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
+      {
+        method: "POST",
+        headers: this.builderHeaders(),
+        body: JSON.stringify(body),
+        cache: "no-store",
+      },
+    );
+
+    const checkoutUrl = result.checkoutUrl?.trim() ?? "";
+    if (!checkoutUrl) {
+      throw new PmtHouseError("Payment method checkout missing checkoutUrl", {
+        status: 502,
+        code: "invalid_response",
+        details: result,
+      });
+    }
+    return {
+      ...result,
+      checkoutUrl,
+    };
+  }
+
+  /** Set the app user's default method on their active billing customer. */
+  async setUserDefaultPaymentMethod(
+    externalUserId: string,
+    paymentMethodId: string,
+  ): Promise<SetAppUserDefaultPaymentMethodResult> {
+    const validated = parseExternalUserId(externalUserId);
+    const id = paymentMethodId.trim();
+    if (!id) {
+      throw new PmtHouseError("paymentMethodId is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+    return this.requestJson<SetAppUserDefaultPaymentMethodResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
+      {
+        method: "PATCH",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({ paymentMethodId: id }),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /** Detach one method from the app user's active billing customer. */
+  async unlinkUserPaymentMethod(
+    externalUserId: string,
+    paymentMethodId: string,
+  ): Promise<UnlinkAppUserPaymentMethodResult> {
+    const validated = parseExternalUserId(externalUserId);
+    const id = paymentMethodId.trim();
+    if (!id) {
+      throw new PmtHouseError("paymentMethodId is required", {
+        status: 400,
+        code: "invalid_request",
+      });
+    }
+    return this.requestJson<UnlinkAppUserPaymentMethodResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
+      {
+        method: "DELETE",
+        headers: this.builderHeaders(),
+        body: JSON.stringify({ paymentMethodId: id }),
         cache: "no-store",
       },
     );

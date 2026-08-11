@@ -205,6 +205,130 @@ describe("PmtHouseClient billing extensions", () => {
     ).rejects.toMatchObject({ status: 502, code: "invalid_response" });
   });
 
+  it("listUserInvoices hits users invoices path", async () => {
+    const captured: { url?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      captured.url = resolveFetchInputUrl(input);
+      return Response.json({
+        items: [{ id: "inv_1", status: "paid", currency: "USD", totalAmount: "0" }],
+        page: 1,
+        pageSize: 20,
+        totalCount: 1,
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).listUserInvoices("user-1", {
+      page: 2,
+      pageSize: 10,
+    });
+    expect(captured.url).toContain(
+      "/apps/app_x/users/user-1/invoices?page=2&pageSize=10",
+    );
+    expect(result.totalCount).toBe(1);
+  });
+
+  it("getUserInvoiceHostedUrl encodes invoice id", async () => {
+    const captured: { url?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      captured.url = resolveFetchInputUrl(input);
+      return Response.json({
+        hostedInvoiceUrl: "https://invoice.stripe.com/i/x",
+        invoicePdf: null,
+      });
+    }) as unknown as FetchLike;
+
+    await makeClient(fetchMock).getUserInvoiceHostedUrl("user-1", "inv/1");
+    expect(captured.url).toContain(
+      "/apps/app_x/users/user-1/invoices/inv%2F1/hosted-url",
+    );
+  });
+
+  it("listUserPaymentMethods and createUserPaymentMethodCheckout", async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      const url = resolveFetchInputUrl(input);
+      urls.push(`${init?.method ?? "GET"} ${url}`);
+      if ((init?.method ?? "GET") === "GET") {
+        return Response.json({
+          paymentMethods: [
+            {
+              id: "pm_1",
+              type: "card",
+              brand: "visa",
+              last4: "4242",
+              expMonth: 12,
+              expYear: 2030,
+              isDefault: true,
+            },
+          ],
+        });
+      }
+      return Response.json({
+        checkoutUrl: "https://checkout.stripe.com/c/pay/cs_pm",
+        sessionId: "cs_pm",
+        customerId: "cus_1",
+        hasDefaultPaymentMethod: false,
+      });
+    }) as unknown as FetchLike;
+
+    const client = makeClient(fetchMock);
+    const listed = await client.listUserPaymentMethods("user-1");
+    expect(listed.paymentMethods[0]?.last4).toBe("4242");
+
+    const checkout = await client.createUserPaymentMethodCheckout({
+      externalUserId: "user-1",
+      successUrl: "https://app.example/settings?tab=billing&checkout=success",
+    });
+    expect(checkout.checkoutUrl).toContain("checkout.stripe.com");
+    expect(
+      urls.some((u) => u.includes("/users/user-1/payment-methods")),
+    ).toBe(true);
+  });
+
+  it("cancelUserSubscription DELETE subscription with confirm", async () => {
+    const captured: { url?: string; method?: string; body?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      captured.method = init?.method;
+      captured.body = typeof init?.body === "string" ? init.body : undefined;
+      return Response.json({
+        subscriptionId: "sub_1",
+        planId: "plan_1",
+        planKey: "plan_key",
+        scheduledPlanKey: "starter_key",
+        effectiveAt: "2026-09-01T00:00:00.000Z",
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).cancelUserSubscription("user-1");
+    expect(captured.method).toBe("DELETE");
+    expect(captured.url).toContain("/users/user-1/subscription");
+    expect(captured.url).not.toContain("pending-change");
+    expect(JSON.parse(captured.body!)).toEqual({ confirm: true });
+    expect(result.subscriptionId).toBe("sub_1");
+  });
+
+  it("resumeUserSubscription DELETE pending-change with confirm", async () => {
+    const captured: { url?: string; method?: string; body?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      captured.method = init?.method;
+      captured.body = typeof init?.body === "string" ? init.body : undefined;
+      return Response.json({
+        resumed: true,
+        subscriptionId: "sub_1",
+        planId: "plan_1",
+        planKey: "plan_key",
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).resumeUserSubscription("user-1");
+    expect(captured.method).toBe("DELETE");
+    expect(captured.url).toContain("/users/user-1/subscription/pending-change");
+    expect(JSON.parse(captured.body!)).toEqual({ confirm: true });
+    expect(result.resumed).toBe(true);
+  });
+
   it("grantUserAllowance maps legacy credit fields", async () => {
     const captured: { url?: string; body?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
