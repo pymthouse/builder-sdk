@@ -525,6 +525,32 @@ export interface ListAppUserInvoicesResult {
   totalCount: number;
 }
 
+/** Prepaid wallet ledger row (`GET …/billing/wallet/transactions`). */
+export type WalletLedgerEntryType =
+  | "credit_purchased"
+  | "usage"
+  | "invoice"
+  | "refund";
+
+export interface WalletLedgerEntry {
+  id: string;
+  date: string;
+  type: WalletLedgerEntryType;
+  description: string;
+  amountUsdMicros: string;
+  creditDeltaUsdMicros: string;
+  balanceUsdMicros: string | null;
+  derived: boolean;
+  status?: string | null;
+  invoiceId?: string | null;
+  hostedInvoiceUrl?: string | null;
+}
+
+export interface ListWalletTransactionsResult {
+  items: WalletLedgerEntry[];
+  degraded: boolean;
+}
+
 export interface AppUserInvoiceHostedUrlResult {
   hostedInvoiceUrl: string | null;
   invoicePdf: string | null;
