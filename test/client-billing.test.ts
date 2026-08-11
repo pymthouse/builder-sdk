@@ -256,6 +256,34 @@ describe("PmtHouseClient billing extensions", () => {
     ).rejects.toMatchObject({ status: 502, code: "invalid_response" });
   });
 
+  it("listUserSubscriptions hits users subscriptions path", async () => {
+    const captured: { url?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      captured.url = resolveFetchInputUrl(input);
+      return Response.json({
+        items: [
+          {
+            id: "sub_1",
+            status: "active",
+            current: true,
+            planId: "plan_1",
+            planName: "Starter",
+            planKey: "starter",
+            openmeterPlanId: "om_1",
+            activeFrom: "2026-08-11T00:00:00.000Z",
+            activeTo: null,
+          },
+        ],
+        externalUserId: "user-1",
+      });
+    }) as unknown as FetchLike;
+
+    const result = await makeClient(fetchMock).listUserSubscriptions("user-1");
+    expect(captured.url).toContain("/apps/app_x/users/user-1/subscriptions");
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.current).toBe(true);
+  });
+
   it("listUserInvoices hits users invoices path", async () => {
     const captured: { url?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput) => {

@@ -417,6 +417,26 @@ export interface UserSubscriptionResponse {
   } | null;
 }
 
+/** One OpenMeter subscription row in an end-user's supersession history. */
+export interface AppUserSubscriptionHistoryItem {
+  id: string;
+  status: string;
+  /** True when this row is the live (active/trialing) subscription. */
+  current: boolean;
+  planId: string | null;
+  planName: string | null;
+  planKey: string | null;
+  openmeterPlanId: string | null;
+  activeFrom: string | null;
+  activeTo: string | null;
+}
+
+/** Result of `GET …/users/{id}/subscriptions` (plan change history). */
+export interface ListAppUserSubscriptionsResult {
+  items: AppUserSubscriptionHistoryItem[];
+  externalUserId: string;
+}
+
 /** Result of `DELETE …/users/{id}/subscription` (schedule cancel). */
 export interface CancelAppUserSubscriptionResult {
   subscriptionId: string;

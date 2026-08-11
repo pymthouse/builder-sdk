@@ -54,6 +54,7 @@ import type {
   BillingState,
   ListAppUserInvoicesResult,
   ListAppUserPaymentMethodsResult,
+  ListAppUserSubscriptionsResult,
   ListBillingProductsResult,
   PlanSyncResult,
   SignerRoutingResponse,
@@ -701,6 +702,24 @@ export class PmtHouseClient {
     const validated = parseExternalUserId(externalUserId);
     return this.requestJson<UserSubscriptionResponse>(
       `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription`,
+      {
+        method: "GET",
+        headers: this.builderHeaders(),
+        cache: "no-store",
+      },
+    );
+  }
+
+  /**
+   * List OpenMeter subscription supersession history for an app end-user
+   * (`GET …/users/{externalUserId}/subscriptions`).
+   */
+  async listUserSubscriptions(
+    externalUserId: string,
+  ): Promise<ListAppUserSubscriptionsResult> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.requestJson<ListAppUserSubscriptionsResult>(
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscriptions`,
       {
         method: "GET",
         headers: this.builderHeaders(),
