@@ -53,6 +53,7 @@ import type {
   BillingCollectResponse,
   BillingState,
   ListAppUserInvoicesResult,
+  ListWalletTransactionsResult,
   ListAppUserPaymentMethodsResult,
   ListAppUserSubscriptionsResult,
   ListBillingProductsResult,
@@ -839,6 +840,24 @@ export class PmtHouseClient {
       url.searchParams.set("pageSize", String(opts.pageSize));
     }
     return this.requestJson<ListAppUserInvoicesResult>(url.toString(), {
+      method: "GET",
+      headers: this.builderHeaders(),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Prepaid wallet ledger for a merchant end-user
+   * (`GET …/billing/wallet/transactions?externalUserId=`).
+   * Includes credit adds, derived usage drawdowns, and Connect invoices.
+   */
+  async listWalletTransactions(
+    externalUserId: string,
+  ): Promise<ListWalletTransactionsResult> {
+    const validated = parseExternalUserId(externalUserId);
+    const url = new URL(`${this.getAppsBaseUrl()}/billing/wallet/transactions`);
+    url.searchParams.set("externalUserId", validated);
+    return this.requestJson<ListWalletTransactionsResult>(url.toString(), {
       method: "GET",
       headers: this.builderHeaders(),
       cache: "no-store",
