@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+## 0.7.1-rc.0
+
+- Read `billing_mode` from minted user JWTs (`readAccessTokenBillingMode`).
+  End-user money reads skip `/me/billing/*` on `owner_rollup` instead of
+  probing then falling back to the M2M owner wallet.
+- End-user billing reads (`getUserAllowances`, `getBillingState(user)`,
+  `getUserSubscription`, `listUserInvoices`, `listUserPaymentMethods`,
+  `getUserWallet`) mint a user JWT then call `GET …/me/billing/*`.
+  `403 merchant_billing_required` is not retried via M2M (owner-wallet leak).
+  Bearer helpers `getMeBilling*` accept an existing JWT or composite key.
+
 ## 0.6.5
 
 - Bump `pnpm.overrides.js-yaml` to `4.3.1` ([GHSA-5p4m-2wfm-xmqj](https://github.com/advisories/GHSA-5p4m-2wfm-xmqj) / Dependabot [#23](https://github.com/pymthouse/builder-sdk/security/dependabot/23)).
