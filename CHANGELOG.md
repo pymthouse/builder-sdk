@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.1-rc.0
+
 - Read `billing_mode` from minted user JWTs (`readAccessTokenBillingMode`).
   End-user money reads skip `/me/billing/*` on `owner_rollup` instead of
   probing then falling back to the M2M owner wallet.
