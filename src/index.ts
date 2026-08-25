@@ -28,7 +28,13 @@ export {
   usageExternalUserIdsEqual,
 } from "./usage.js";
 export { PmtHouseClient, buildDeviceCodeResource, normalizeUserCode } from "./client.js";
-export { PmtHouseError, toPmtHouseError } from "./errors.js";
+export {
+  isMerchantBillingRequiredError,
+  MERCHANT_BILLING_REQUIRED,
+  MERCHANT_WALLET_REQUIRED,
+  PmtHouseError,
+  toPmtHouseError,
+} from "./errors.js";
 export {
   ExternalUserIdError,
   INVALID_EXTERNAL_USER_ID,
@@ -84,6 +90,7 @@ export type {
   CreateBillingCheckoutInput,
   CreateBillingCheckoutResult,
   DeviceApprovalInput,
+  EndUserMeWallet,
   FetchLike,
   GetAppManifestResult,
   GetDiscoveryOptions,

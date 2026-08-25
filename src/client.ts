@@ -11,7 +11,10 @@ import {
 } from "oauth4webapi";
 import { encodeClientSecretBasic } from "./encoding.js";
 import { loadAuthorizationServer, authorizationServerToOidcDocument } from "./discovery.js";
-import { PmtHouseError } from "./errors.js";
+import {
+  isMerchantBillingRequiredError,
+  PmtHouseError,
+} from "./errors.js";
 import { parseExternalUserId } from "./external-user-id.js";
 import { parseAppManifestResponse } from "./manifest.js";
 import { stripTrailingSlashes } from "./string-utils.js";
@@ -65,6 +68,7 @@ import type {
   UnlinkAppUserPaymentMethodResult,
   UsageApiResponse,
   UsageQueryInput,
+  EndUserMeWallet,
   UsageBalanceResponse,
   UserAllowanceGrantInput,
   UserAllowancesResponse,
@@ -637,19 +641,39 @@ export class PmtHouseClient {
   }
 
   /**
-   * Spend posture for a subject: whether it can spend, how much room is left,
-   * and what happens next. Merchant apps must pass `externalUserId`.
+   * Spend posture for a subject.
+   * With `externalUserId`, prefers minted-user `GET …/me/billing/state`.
+   * Omit the id for the owner M2M `/billing/state` read.
    */
   async getBillingState(externalUserId?: string): Promise<BillingState> {
-    const url = new URL(`${this.getAppsBaseUrl()}/billing/state`);
-    if (externalUserId !== undefined) {
-      url.searchParams.set("externalUserId", parseExternalUserId(externalUserId));
+    if (externalUserId === undefined) {
+      return this.requestJson<BillingState>(
+        `${this.getAppsBaseUrl()}/billing/state`,
+        {
+          method: "GET",
+          headers: this.builderHeaders(),
+          cache: "no-store",
+        },
+      );
     }
-    return this.requestJson<BillingState>(url.toString(), {
-      method: "GET",
-      headers: this.builderHeaders(),
-      cache: "no-store",
-    });
+    const validated = parseExternalUserId(externalUserId);
+    return this.withMintedMeBilling(
+      validated,
+      (accessToken) => this.getMeBillingState(accessToken),
+      () => {
+        const url = new URL(`${this.getAppsBaseUrl()}/billing/state`);
+        url.searchParams.set("externalUserId", validated);
+        return this.requestJson<BillingState>(url.toString(), {
+          method: "GET",
+          headers: this.builderHeaders(),
+          cache: "no-store",
+        });
+      },
+    );
+  }
+
+  async getMeBillingState(accessToken: string): Promise<BillingState> {
+    return this.requestMeBillingJson<BillingState>(accessToken, "state");
   }
 
   /**
@@ -676,6 +700,37 @@ export class PmtHouseClient {
     opts?: { currency?: string; featureKey?: string },
   ): Promise<UserAllowancesResponse> {
     const validated = parseExternalUserId(externalUserId);
+    return this.withMintedMeBilling(
+      validated,
+      (accessToken) => this.getMeBillingAllowances(accessToken, opts),
+      () => {
+        const params = new URLSearchParams();
+        const currency = opts?.currency?.trim();
+        if (currency) {
+          params.set("filter[currency][eq]", currency.toUpperCase());
+        }
+        const featureKey = opts?.featureKey?.trim();
+        if (featureKey) {
+          params.set("filter[feature_key][eq]", featureKey);
+        }
+        const query = params.toString();
+        const suffix = query ? `?${query}` : "";
+        return this.requestJson<UserAllowancesResponse>(
+          `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/allowances${suffix}`,
+          {
+            method: "GET",
+            headers: this.builderHeaders(),
+            cache: "no-store",
+          },
+        );
+      },
+    );
+  }
+
+  async getMeBillingAllowances(
+    accessToken: string,
+    opts?: { currency?: string; featureKey?: string },
+  ): Promise<UserAllowancesResponse> {
     const params = new URLSearchParams();
     const currency = opts?.currency?.trim();
     if (currency) {
@@ -685,15 +740,10 @@ export class PmtHouseClient {
     if (featureKey) {
       params.set("filter[feature_key][eq]", featureKey);
     }
-    const query = params.toString();
-    const suffix = query ? `?${query}` : "";
-    return this.requestJson<UserAllowancesResponse>(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/allowances${suffix}`,
-      {
-        method: "GET",
-        headers: this.builderHeaders(),
-        cache: "no-store",
-      },
+    return this.requestMeBillingJson<UserAllowancesResponse>(
+      accessToken,
+      "allowances",
+      params,
     );
   }
 
@@ -715,13 +765,27 @@ export class PmtHouseClient {
 
   async getUserSubscription(externalUserId: string): Promise<UserSubscriptionResponse> {
     const validated = parseExternalUserId(externalUserId);
-    return this.requestJson<UserSubscriptionResponse>(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription`,
-      {
-        method: "GET",
-        headers: this.builderHeaders(),
-        cache: "no-store",
-      },
+    return this.withMintedMeBilling(
+      validated,
+      (accessToken) => this.getMeBillingSubscription(accessToken),
+      () =>
+        this.requestJson<UserSubscriptionResponse>(
+          `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/subscription`,
+          {
+            method: "GET",
+            headers: this.builderHeaders(),
+            cache: "no-store",
+          },
+        ),
+    );
+  }
+
+  async getMeBillingSubscription(
+    accessToken: string,
+  ): Promise<UserSubscriptionResponse> {
+    return this.requestMeBillingJson<UserSubscriptionResponse>(
+      accessToken,
+      "subscription",
     );
   }
 
@@ -846,18 +910,38 @@ export class PmtHouseClient {
     opts?: { page?: number; pageSize?: number },
   ): Promise<ListAppUserInvoicesResult> {
     const validated = parseExternalUserId(externalUserId);
-    const url = new URL(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/invoices`,
+    return this.withMintedMeBilling(
+      validated,
+      (accessToken) => this.getMeBillingInvoices(accessToken, opts),
+      () => {
+        const url = new URL(
+          `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/invoices`,
+        );
+        if (opts?.page != null) url.searchParams.set("page", String(opts.page));
+        if (opts?.pageSize != null) {
+          url.searchParams.set("pageSize", String(opts.pageSize));
+        }
+        return this.requestJson<ListAppUserInvoicesResult>(url.toString(), {
+          method: "GET",
+          headers: this.builderHeaders(),
+          cache: "no-store",
+        });
+      },
     );
-    if (opts?.page != null) url.searchParams.set("page", String(opts.page));
-    if (opts?.pageSize != null) {
-      url.searchParams.set("pageSize", String(opts.pageSize));
-    }
-    return this.requestJson<ListAppUserInvoicesResult>(url.toString(), {
-      method: "GET",
-      headers: this.builderHeaders(),
-      cache: "no-store",
-    });
+  }
+
+  async getMeBillingInvoices(
+    accessToken: string,
+    opts?: { page?: number; pageSize?: number },
+  ): Promise<ListAppUserInvoicesResult> {
+    const params = new URLSearchParams();
+    if (opts?.page != null) params.set("page", String(opts.page));
+    if (opts?.pageSize != null) params.set("pageSize", String(opts.pageSize));
+    return this.requestMeBillingJson<ListAppUserInvoicesResult>(
+      accessToken,
+      "invoices",
+      params,
+    );
   }
 
   /**
@@ -912,14 +996,46 @@ export class PmtHouseClient {
     externalUserId: string,
   ): Promise<ListAppUserPaymentMethodsResult> {
     const validated = parseExternalUserId(externalUserId);
-    return this.requestJson<ListAppUserPaymentMethodsResult>(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
-      {
-        method: "GET",
-        headers: this.builderHeaders(),
-        cache: "no-store",
+    return this.withMintedMeBilling(
+      validated,
+      (accessToken) => this.getMeBillingPaymentMethods(accessToken),
+      () =>
+        this.requestJson<ListAppUserPaymentMethodsResult>(
+          `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/payment-methods`,
+          {
+            method: "GET",
+            headers: this.builderHeaders(),
+            cache: "no-store",
+          },
+        ),
+    );
+  }
+
+  async getMeBillingPaymentMethods(
+    accessToken: string,
+  ): Promise<ListAppUserPaymentMethodsResult> {
+    return this.requestMeBillingJson<ListAppUserPaymentMethodsResult>(
+      accessToken,
+      "payment-methods",
+    );
+  }
+
+  async getUserWallet(externalUserId: string): Promise<EndUserMeWallet> {
+    const validated = parseExternalUserId(externalUserId);
+    return this.withMintedMeBilling(
+      validated,
+      (accessToken) => this.getMeBillingWallet(accessToken),
+      () => {
+        throw new PmtHouseError("End-user wallet requires GET …/me/billing/wallet", {
+          status: 404,
+          code: "not_found",
+        });
       },
     );
+  }
+
+  async getMeBillingWallet(accessToken: string): Promise<EndUserMeWallet> {
+    return this.requestMeBillingJson<EndUserMeWallet>(accessToken, "wallet");
   }
 
   /**
@@ -1304,6 +1420,51 @@ export class PmtHouseClient {
       }
       await this.upsertAppUser({ externalUserId });
       return this.mintUserAccessToken({ externalUserId });
+    }
+  }
+
+  private meBillingUrl(suffix: string, params?: URLSearchParams): string {
+    const url = new URL(`${this.getAppsBaseUrl()}/me/billing/${suffix}`);
+    if (params) {
+      params.forEach((value, key) => {
+        if (value) url.searchParams.set(key, value);
+      });
+    }
+    return url.toString();
+  }
+
+  private async requestMeBillingJson<T>(
+    accessToken: string,
+    suffix: string,
+    params?: URLSearchParams,
+  ): Promise<T> {
+    return this.requestJson<T>(this.meBillingUrl(suffix, params), {
+      method: "GET",
+      headers: this.endUserHeaders(accessToken),
+      cache: "no-store",
+    });
+  }
+
+  /**
+   * Mint a user JWT and call `/me/billing`. 403 merchant_* is never retried
+   * via M2M (that would leak the owner wallet). 404 route-missing may fall back.
+   */
+  private async withMintedMeBilling<T>(
+    externalUserId: string,
+    meCall: (accessToken: string) => Promise<T>,
+    m2mFallback: () => Promise<T>,
+  ): Promise<T> {
+    const token = await this.ensureEndUserAccessToken(externalUserId);
+    try {
+      return await meCall(token.access_token);
+    } catch (error) {
+      if (isMerchantBillingRequiredError(error)) {
+        throw error;
+      }
+      if (error instanceof PmtHouseError && error.status === 404) {
+        return m2mFallback();
+      }
+      throw error;
     }
   }
 

@@ -17,6 +17,29 @@ function makeClient(fetchImpl: FetchLike) {
   });
 }
 
+function mintedUserTokenResponse() {
+  return Response.json({
+    access_token: "user-jwt",
+    refresh_token: "",
+    token_type: "Bearer",
+    expires_in: 3600,
+    scope: "sign:job",
+    subject_type: "app_user",
+  });
+}
+
+function meBillingAwareFetch(
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+): FetchLike {
+  return vi.fn(async (input: FetchInput, init?: RequestInit) => {
+    const url = resolveFetchInputUrl(input);
+    if (url.includes("/users/") && url.endsWith("/token")) {
+      return mintedUserTokenResponse();
+    }
+    return handler(url, init);
+  }) as unknown as FetchLike;
+}
+
 describe("PmtHouseClient billing extensions", () => {
   it("getUsage passes include=retail", async () => {
     const captured: { url?: string } = {};
@@ -85,10 +108,11 @@ describe("PmtHouseClient billing extensions", () => {
     expect(balance.hasAccess).toBe(true);
   });
 
-  it("getUserAllowances returns Konnect live pending settled", async () => {
-    const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: FetchInput) => {
-      captured.url = resolveFetchInputUrl(input);
+  it("getUserAllowances mints then GETs /me/billing/allowances", async () => {
+    const captured: { url?: string; auth?: string } = {};
+    const fetchMock = meBillingAwareFetch(async (url, init) => {
+      captured.url = url;
+      captured.auth = new Headers(init?.headers).get("authorization") ?? undefined;
       return Response.json({
         externalUserId: "user-1",
         customerId: "01KW2BBAK6V8K9B2K83SX1MW03",
@@ -98,17 +122,61 @@ describe("PmtHouseClient billing extensions", () => {
         settled: "0.40",
         retrievedAt: "2026-08-13T12:00:00Z",
       });
-    }) as unknown as FetchLike;
+    });
 
     const balance = await makeClient(fetchMock).getUserAllowances("user-1", {
       featureKey: "input_tokens",
     });
-    expect(captured.url).toContain("/allowances");
+    expect(captured.url).toContain("/me/billing/allowances");
+    expect(captured.url).not.toContain("externalUserId=");
     expect(captured.url).toContain("filter%5Bfeature_key%5D%5Beq%5D=input_tokens");
+    expect(captured.auth).toBe("Bearer user-jwt");
     expect(balance.pending).toBe("0.35");
     expect(balance.settled).toBe("0.40");
     expect(balance.live).toBe("0.50");
     expect(balance.customerId).toBe("01KW2BBAK6V8K9B2K83SX1MW03");
+  });
+
+  it("getUserAllowances does not M2M-fallback merchant_billing_required", async () => {
+    const urls: string[] = [];
+    const fetchMock = meBillingAwareFetch(async (url) => {
+      urls.push(url);
+      return Response.json(
+        {
+          error: "End-user billing is merchant-mode only",
+          code: "merchant_billing_required",
+        },
+        { status: 403 },
+      );
+    });
+
+    await expect(makeClient(fetchMock).getUserAllowances("user-1")).rejects.toMatchObject({
+      status: 403,
+      code: "merchant_billing_required",
+    });
+    expect(urls.some((url) => url.includes("/users/user-1/allowances"))).toBe(false);
+  });
+
+  it("getMeBillingAllowances uses the supplied Bearer without mint", async () => {
+    const captured: { url?: string; auth?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      captured.url = resolveFetchInputUrl(input);
+      captured.auth = new Headers(init?.headers).get("authorization") ?? undefined;
+      return Response.json({
+        externalUserId: "user-1",
+        customerId: "cus",
+        currency: "USD",
+        live: "0",
+        pending: "0",
+        settled: "0",
+        retrievedAt: null,
+      });
+    }) as unknown as FetchLike;
+
+    await makeClient(fetchMock).getMeBillingAllowances("app_x_pmth_abc");
+    expect(captured.url).toContain("/me/billing/allowances");
+    expect(captured.auth).toBe("Bearer app_x_pmth_abc");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("grantUserAllowance POSTs to allowances endpoint", async () => {
@@ -135,21 +203,21 @@ describe("PmtHouseClient billing extensions", () => {
     });
   });
 
-  it("getBillingState GETs billing/state scoped to the external user", async () => {
+  it("getBillingState GETs me/billing/state for an external user", async () => {
     const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: FetchInput) => {
-      captured.url = resolveFetchInputUrl(input);
+    const fetchMock = meBillingAwareFetch(async (url) => {
+      captured.url = url;
       return Response.json({
         status: "overage",
         canSpend: true,
         reason: null,
       });
-    }) as unknown as FetchLike;
+    });
 
     const state = await makeClient(fetchMock).getBillingState("user-1");
     const url = new URL(captured.url!);
-    expect(url.pathname).toContain("/billing/state");
-    expect(url.searchParams.get("externalUserId")).toBe("user-1");
+    expect(url.pathname).toContain("/me/billing/state");
+    expect(url.searchParams.has("externalUserId")).toBe(false);
     expect(state.status).toBe("overage");
   });
 
@@ -321,25 +389,25 @@ describe("PmtHouseClient billing extensions", () => {
     expect(result.items[0]?.current).toBe(true);
   });
 
-  it("listUserInvoices hits users invoices path", async () => {
+  it("listUserInvoices hits me/billing/invoices", async () => {
     const captured: { url?: string } = {};
-    const fetchMock = vi.fn(async (input: FetchInput) => {
-      captured.url = resolveFetchInputUrl(input);
+    const fetchMock = meBillingAwareFetch(async (url) => {
+      captured.url = url;
       return Response.json({
         items: [{ id: "inv_1", status: "paid", currency: "USD", totalAmount: "0" }],
         page: 1,
         pageSize: 20,
         totalCount: 1,
       });
-    }) as unknown as FetchLike;
+    });
 
     const result = await makeClient(fetchMock).listUserInvoices("user-1", {
       page: 2,
       pageSize: 10,
     });
-    expect(captured.url).toContain(
-      "/apps/app_x/users/user-1/invoices?page=2&pageSize=10",
-    );
+    expect(captured.url).toContain("/me/billing/invoices");
+    expect(captured.url).toContain("page=2");
+    expect(captured.url).toContain("pageSize=10");
     expect(result.totalCount).toBe(1);
   });
 
@@ -364,6 +432,9 @@ describe("PmtHouseClient billing extensions", () => {
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {
       const url = resolveFetchInputUrl(input);
       urls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.includes("/token")) {
+        return mintedUserTokenResponse();
+      }
       if ((init?.method ?? "GET") === "GET") {
         return Response.json({
           paymentMethods: [

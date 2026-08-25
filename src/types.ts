@@ -362,6 +362,25 @@ export interface UserAllowanceGrantInput {
   featureKey?: string;
 }
 
+/** Snapshot from `GET …/me/billing/wallet` (merchant prepaid wallet). */
+export interface EndUserMeWallet {
+  clientId: string;
+  balance: {
+    usdMicros: string;
+    usd: string;
+    lifetimeGrantedUsdMicros: string;
+    consumedUsdMicros: string;
+  } | null;
+  paymentMethod: { hasDefault: boolean | null };
+  billingState: BillingState;
+  payPerUsePlans: Array<{
+    planId: string;
+    planName: string;
+    chargeThresholdUsdMicros: string | null;
+    resolvedBehavior: string;
+  }>;
+}
+
 export interface UserAllowancesResponse {
   externalUserId: string;
   customerId: string;
