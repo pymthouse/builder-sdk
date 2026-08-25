@@ -64,11 +64,13 @@ export {
   isLikelyOidcJwt,
   isOpaqueSignerSessionToken,
   parseSignerSessionExchange,
+  readAccessTokenBillingMode,
+  ACCESS_TOKEN_BILLING_MODE_CLAIM,
   SIGNER_SESSION_EXPIRES_IN_SEC,
   SIGNER_SESSION_TTL_MS,
   SIGN_JOB_SCOPE,
 } from "./tokens.js";
-export type { SignerSessionToken } from "./tokens.js";
+export type { AccessTokenBillingMode, SignerSessionToken } from "./tokens.js";
 export {
   COMPOSITE_API_KEY_RE,
   formatCompositeApiKey,

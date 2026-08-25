@@ -8,6 +8,7 @@ import {
   isLikelyOidcJwt,
   isOpaqueSignerSessionToken,
   parseSignerSessionExchange,
+  readAccessTokenBillingMode,
   SIGNER_SESSION_TTL_MS,
 } from "../src/tokens.js";
 
@@ -34,6 +35,22 @@ describe("tokens", () => {
     }
     const jwt = `eyJhbGciOiJIUzI1NiJ9.${payload}.sig`;
     expect(decodeJwtExp(jwt)?.getTime()).toBe(1_700_000_000_000);
+  });
+
+  it("readAccessTokenBillingMode reads billing_mode without verifying", () => {
+    let payload = Buffer.from(
+      JSON.stringify({ billing_mode: "owner_rollup" }),
+      "utf8",
+    )
+      .toString("base64")
+      .replaceAll("+", "-")
+      .replaceAll("/", "_");
+    while (payload.endsWith("=")) {
+      payload = payload.slice(0, -1);
+    }
+    const jwt = `eyJhbGciOiJIUzI1NiJ9.${payload}.sig`;
+    expect(readAccessTokenBillingMode(jwt)).toBe("owner_rollup");
+    expect(readAccessTokenBillingMode("pmth_opaque")).toBeNull();
   });
 
   it("parseSignerSessionExchange rejects JWT access_token", () => {

@@ -157,6 +157,41 @@ describe("PmtHouseClient billing extensions", () => {
     expect(urls.some((url) => url.includes("/users/user-1/allowances"))).toBe(false);
   });
 
+  it("getUserAllowances skips /me/billing when the minted JWT is owner_rollup", async () => {
+    const urls: string[] = [];
+    const payload = Buffer.from(
+      JSON.stringify({ billing_mode: "owner_rollup" }),
+      "utf8",
+    )
+      .toString("base64")
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replace(/=+$/, "");
+    const jwt = `eyJhbGciOiJIUzI1NiJ9.${payload}.sig`;
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      const url = resolveFetchInputUrl(input);
+      urls.push(url);
+      if (url.includes("/users/") && url.endsWith("/token")) {
+        return Response.json({
+          access_token: jwt,
+          refresh_token: "",
+          token_type: "Bearer",
+          expires_in: 3600,
+          scope: "sign:job",
+          subject_type: "app_user",
+        });
+      }
+      return Response.json({ error: "unexpected" }, { status: 500 });
+    }) as unknown as FetchLike;
+
+    await expect(makeClient(fetchMock).getUserAllowances("user-1")).rejects.toMatchObject({
+      status: 403,
+      code: "merchant_billing_required",
+    });
+    expect(urls.some((url) => url.includes("/me/billing"))).toBe(false);
+    expect(urls.some((url) => url.includes("/users/user-1/allowances"))).toBe(false);
+  });
+
   it("getMeBillingAllowances uses the supplied Bearer without mint", async () => {
     const captured: { url?: string; auth?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {

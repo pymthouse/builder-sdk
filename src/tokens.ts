@@ -60,15 +60,48 @@ function base64UrlPayloadToUtf8(payloadB64: string): string {
  * display or soft-cleanup of unusable keys, never for authorization.
  */
 export function decodeJwtExp(rawToken: string): Date | null {
+  const payload = decodeUnverifiedJwtPayload(rawToken);
+  if (!payload) return null;
   try {
-    const parts = rawToken.split(".");
-    if (parts.length < 2) return null;
-    const payloadJson = base64UrlPayloadToUtf8(parts[1]);
-    const payload = JSON.parse(payloadJson) as { exp?: number };
     if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return null;
     const expMs = Math.floor(payload.exp * 1000);
     if (expMs <= 0) return null;
     return new Date(expMs);
+  } catch {
+    return null;
+  }
+}
+
+/** PymtHouse JWT claim stamped from app billing config at mint time. */
+export const ACCESS_TOKEN_BILLING_MODE_CLAIM = "billing_mode";
+
+export type AccessTokenBillingMode = "merchant" | "owner_rollup";
+
+/**
+ * Read `billing_mode` from an unverified user JWT. `owner_rollup` means
+ * `/me/billing` money routes will 403 — skip them instead of falling back to
+ * the owner wallet. Returns null for opaque tokens or missing/unknown claims.
+ */
+export function readAccessTokenBillingMode(
+  accessToken: string,
+): AccessTokenBillingMode | null {
+  const payload = decodeUnverifiedJwtPayload(accessToken);
+  const mode = payload?.[ACCESS_TOKEN_BILLING_MODE_CLAIM];
+  if (mode === "merchant" || mode === "owner_rollup") {
+    return mode;
+  }
+  return null;
+}
+
+function decodeUnverifiedJwtPayload(
+  rawToken: string,
+): Record<string, unknown> | null {
+  try {
+    const parts = rawToken.split(".");
+    if (parts.length < 2) return null;
+    const payloadJson = base64UrlPayloadToUtf8(parts[1]);
+    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    return payload && typeof payload === "object" ? payload : null;
   } catch {
     return null;
   }

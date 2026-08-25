@@ -13,11 +13,13 @@ import { encodeClientSecretBasic } from "./encoding.js";
 import { loadAuthorizationServer, authorizationServerToOidcDocument } from "./discovery.js";
 import {
   isMerchantBillingRequiredError,
+  MERCHANT_BILLING_REQUIRED,
   PmtHouseError,
 } from "./errors.js";
 import { parseExternalUserId } from "./external-user-id.js";
 import { parseAppManifestResponse } from "./manifest.js";
 import { stripTrailingSlashes } from "./string-utils.js";
+import { readAccessTokenBillingMode } from "./tokens.js";
 import { SIGN_JOB_SCOPE, parseSignerSessionExchange } from "./tokens.js";
 import type { SignerSessionToken } from "./tokens.js";
 import {
@@ -1446,8 +1448,9 @@ export class PmtHouseClient {
   }
 
   /**
-   * Mint a user JWT and call `/me/billing`. 403 merchant_* is never retried
-   * via M2M (that would leak the owner wallet). 404 route-missing may fall back.
+   * Mint a user JWT and call `/me/billing`. When the JWT already says
+   * `owner_rollup`, skip the money GET (and never fall back to the M2M owner
+   * wallet). 403 merchant_* is never retried via M2M. 404 route-missing may fall back.
    */
   private async withMintedMeBilling<T>(
     externalUserId: string,
@@ -1455,6 +1458,12 @@ export class PmtHouseClient {
     m2mFallback: () => Promise<T>,
   ): Promise<T> {
     const token = await this.ensureEndUserAccessToken(externalUserId);
+    if (readAccessTokenBillingMode(token.access_token) === "owner_rollup") {
+      throw new PmtHouseError("End-user billing is merchant-mode only", {
+        status: 403,
+        code: MERCHANT_BILLING_REQUIRED,
+      });
+    }
     try {
       return await meCall(token.access_token);
     } catch (error) {
