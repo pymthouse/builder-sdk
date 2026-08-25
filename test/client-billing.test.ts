@@ -85,6 +85,32 @@ describe("PmtHouseClient billing extensions", () => {
     expect(balance.hasAccess).toBe(true);
   });
 
+  it("getUserAllowances returns Konnect live pending settled", async () => {
+    const captured: { url?: string } = {};
+    const fetchMock = vi.fn(async (input: FetchInput) => {
+      captured.url = resolveFetchInputUrl(input);
+      return Response.json({
+        externalUserId: "user-1",
+        customerId: "01KW2BBAK6V8K9B2K83SX1MW03",
+        currency: "USD",
+        live: "0.50",
+        pending: "0.35",
+        settled: "0.40",
+        retrievedAt: "2026-08-13T12:00:00Z",
+      });
+    }) as unknown as FetchLike;
+
+    const balance = await makeClient(fetchMock).getUserAllowances("user-1", {
+      featureKey: "input_tokens",
+    });
+    expect(captured.url).toContain("/allowances");
+    expect(captured.url).toContain("filter%5Bfeature_key%5D%5Beq%5D=input_tokens");
+    expect(balance.pending).toBe("0.35");
+    expect(balance.settled).toBe("0.40");
+    expect(balance.live).toBe("0.50");
+    expect(balance.customerId).toBe("01KW2BBAK6V8K9B2K83SX1MW03");
+  });
+
   it("grantUserAllowance POSTs to allowances endpoint", async () => {
     const captured: { url?: string; body?: string } = {};
     const fetchMock = vi.fn(async (input: FetchInput, init?: RequestInit) => {

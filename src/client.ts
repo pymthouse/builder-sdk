@@ -671,10 +671,24 @@ export class PmtHouseClient {
     );
   }
 
-  async getUserAllowances(externalUserId: string): Promise<UserAllowancesResponse> {
+  async getUserAllowances(
+    externalUserId: string,
+    opts?: { currency?: string; featureKey?: string },
+  ): Promise<UserAllowancesResponse> {
     const validated = parseExternalUserId(externalUserId);
+    const params = new URLSearchParams();
+    const currency = opts?.currency?.trim();
+    if (currency) {
+      params.set("filter[currency][eq]", currency.toUpperCase());
+    }
+    const featureKey = opts?.featureKey?.trim();
+    if (featureKey) {
+      params.set("filter[feature_key][eq]", featureKey);
+    }
+    const query = params.toString();
+    const suffix = query ? `?${query}` : "";
     return this.requestJson<UserAllowancesResponse>(
-      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/allowances`,
+      `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/allowances${suffix}`,
       {
         method: "GET",
         headers: this.builderHeaders(),
@@ -686,7 +700,7 @@ export class PmtHouseClient {
   async grantUserAllowance(
     externalUserId: string,
     input: UserAllowanceGrantInput,
-  ): Promise<UserAllowancesResponse & { grantedUsdMicros?: string; featureKey?: string }> {
+  ): Promise<Record<string, unknown>> {
     const validated = parseExternalUserId(externalUserId);
     return this.requestJson(
       `${this.getAppsBaseUrl()}/users/${encodeURIComponent(validated)}/allowances`,

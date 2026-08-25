@@ -364,12 +364,15 @@ export interface UserAllowanceGrantInput {
 
 export interface UserAllowancesResponse {
   externalUserId: string;
-  allowances: {
-    balanceUsdMicros: string;
-    consumedUsdMicros?: string;
-    lifetimeGrantedUsdMicros?: string;
-    hasAccess?: boolean;
-  };
+  customerId: string;
+  currency: string;
+  /** Spendable after open charges. */
+  live: string;
+  /** Unbooked / future-dated grants — not spendable yet. */
+  pending: string;
+  /** Committed ledger. */
+  settled: string;
+  retrievedAt: string | null;
 }
 
 /** Pending end-of-cycle cancel on an app end-user subscription. */
