@@ -320,13 +320,13 @@ routes and synchronous HTTP signed-ticket ingest are removed.
 
 **Routing:** `getSignerRouting()` returns the remote DMZ URL and webhook URL (`patterns.directDmz`).
 
-**Allowances (OpenMeter):** Trial and manual USD micros allowance use OpenMeter entitlements — not a Postgres wei ledger.
+**Allowances (Konnect credits):** `GET .../users/{id}/allowances` is a thin Konnect `credits/balance` read (`live`, `pending`, `settled` as decimal dollars). Use `live` for operational spend checks; `settled` for audit. `pending` is unbooked grants, not spendable. Do not merge currencies. POST is admin-only.
 
 | Method | SDK | HTTP |
 |--------|-----|------|
-| Read balance | `getUsageBalance(externalUserId)` | `GET .../usage/balance?externalUserId=` |
-| Read allowance detail | `getUserAllowances(externalUserId)` | `GET .../users/{id}/allowances` |
-| Top-up grant | `grantUserAllowance(externalUserId, { amountUsdMicros, source })` | `POST .../users/{id}/allowances` |
+| Read credit balance | `getUserAllowances(externalUserId)` | `GET .../users/{id}/allowances` |
+| Plan included remaining | `getUsageBalance(externalUserId)` | `GET .../usage/balance?externalUserId=` |
+| Top-up grant | `grantUserAllowance` POSTs `403 free_grant_admin_only` | Admin `POST .../admin/billing/owners/{userId}/grants` |
 
 **Plan pricing helpers:** `markupPercentToRetailRateUsd`, `applyRetailRateToNetworkMicros` (exported from the main entry).
 

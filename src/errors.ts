@@ -1,3 +1,17 @@
+/** End-user `/me/billing` money APIs on owner_rollup apps. */
+export const MERCHANT_BILLING_REQUIRED = "merchant_billing_required";
+export const MERCHANT_WALLET_REQUIRED = "merchant_wallet_required";
+
+export function isMerchantBillingRequiredError(error: unknown): boolean {
+  if (!(error instanceof PmtHouseError) || error.status !== 403) {
+    return false;
+  }
+  return (
+    error.code === MERCHANT_BILLING_REQUIRED ||
+    error.code === MERCHANT_WALLET_REQUIRED
+  );
+}
+
 export class PmtHouseError extends Error {
   readonly status: number;
   readonly code: string;
