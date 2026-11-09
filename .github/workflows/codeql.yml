@@ -45,6 +45,6 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
       - if: matrix.language == 'javascript-typescript'
         run: pnpm run build
-      - uses: github/codeql-action/analyze@dc73d59c2d7bd4f8194098a91219eeee6d8a1719 # v4
+      - uses: github/codeql-action/analyze@fbfa9f37476c0024508d051f3c34fcca3366b0e2 # v4
         with:
           category: "/language:${{ matrix.language }}"
