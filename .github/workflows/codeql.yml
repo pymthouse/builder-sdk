@@ -35,7 +35,7 @@ jobs:
           queries: security-extended
       # Optional build for JS/TS; CodeQL uses build-mode none (extractor walks sources).
       - if: matrix.language == 'javascript-typescript'
-        uses: pnpm/action-setup@ac6db6d3c1f721f886538a378a2d73e85697340a # v6
+        uses: pnpm/action-setup@5eea8caf49c844361c1e9ddc1324e179c54b58e9 # v6
       - if: matrix.language == 'javascript-typescript'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
